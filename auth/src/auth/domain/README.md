@@ -1,0 +1,3 @@
+В model лежат модели и команды, с которыми работают сервисы, например UserModel и SignInCommand. В service лежат сценарии регистрации, входа и работы с профилем, а также сервис выпуска и проверки токенов. В repository лежат интерфейсы доступа к данным. В mapper лежат преобразования между моделями внутри domain.
+
+Сервисы работают через интерфейсы из repository. Например, UserService вызывает UserModelRepository, а реализацию подставляет Spring. Domain может использовать типы из common и бизнес-исключения из exception. Сервисы аутентификации могут использовать интерфейсы Spring Security, например PasswordEncoder. Domain не импортирует web, config, DAO и infrastructure.
