@@ -17,6 +17,6 @@ public enum Role {
                 return role;
             }
         }
-        throw new IllegalArgumentException("Неизвестная роль в токене: " + authority);
+        throw new IllegalArgumentException("Неизвестная роль в токене");
     }
 }
