@@ -1,5 +1,7 @@
 package auth.domain.model;
 
+import lombok.Getter;
+
 import java.time.Duration;
 import java.util.Arrays;
 
@@ -12,8 +14,11 @@ public final class TokenSettings {
     public static final int HMAC_MIN_BYTES = 32;
 
     private final byte[] hmacSecret;
+    @Getter
     private final Duration accessTtl;
+    @Getter
     private final Duration refreshTtl;
+    @Getter
     private final String issuer;
 
     public TokenSettings(byte[] hmacSecret, Duration accessTtl, Duration refreshTtl, String issuer) {
@@ -43,17 +48,5 @@ public final class TokenSettings {
 
     public byte[] copySecret() {
         return Arrays.copyOf(hmacSecret, hmacSecret.length);
-    }
-
-    public Duration getAccessTtl() {
-        return accessTtl;
-    }
-
-    public Duration getRefreshTtl() {
-        return refreshTtl;
-    }
-
-    public String getIssuer() {
-        return issuer;
     }
 }

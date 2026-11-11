@@ -1,20 +1,12 @@
 package auth.domain.model;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
 public final class SignInCommand {
 
     private final String email;
     private final String password;
-
-    public SignInCommand(String email, String password) {
-        this.email = email;
-        this.password = password;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
 }

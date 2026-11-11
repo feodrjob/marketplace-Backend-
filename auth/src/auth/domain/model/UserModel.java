@@ -3,11 +3,17 @@ package auth.domain.model;
 import auth.common.enums.Role;
 import auth.exception.ProfileUpdateNotAllowedException;
 import auth.exception.ValidationException;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
 
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+@Getter
+@EqualsAndHashCode(of = "id")
+@ToString(of = {"id", "email", "role"})
 public final class UserModel {
 
     private final UUID id;
@@ -257,74 +263,5 @@ public final class UserModel {
             throw new IllegalArgumentException("Поле " + field + " обязательно");
         }
         return value;
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public Role getRole() {
-        return role;
-    }
-
-    public String getFullName() {
-        return fullName;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public String getCompanyName() {
-        return companyName;
-    }
-
-    public String getInn() {
-        return inn;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public String getDepartment() {
-        return department;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-        if (!(other instanceof UserModel user)) {
-            return false;
-        }
-        return id.equals(user.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return id.hashCode();
-    }
-
-    @Override
-    public String toString() {
-        return "UserModel{id=" + id + ", email=" + email + ", role=" + role + "}";
     }
 }

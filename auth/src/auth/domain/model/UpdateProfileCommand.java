@@ -1,7 +1,10 @@
 package auth.domain.model;
 
+import lombok.Getter;
+
 import java.util.Objects;
 
+@Getter
 public final class UpdateProfileCommand {
 
     private final String accessToken;
@@ -10,13 +13,5 @@ public final class UpdateProfileCommand {
     public UpdateProfileCommand(String accessToken, ProfilePatch patch) {
         this.accessToken = accessToken;
         this.patch = Objects.requireNonNull(patch, "patch");
-    }
-
-    public String getAccessToken() {
-        return accessToken;
-    }
-
-    public ProfilePatch getPatch() {
-        return patch;
     }
 }

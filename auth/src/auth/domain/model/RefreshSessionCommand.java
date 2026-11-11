@@ -1,14 +1,11 @@
 package auth.domain.model;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
 public final class RefreshSessionCommand {
 
     private final String refreshToken;
-
-    public RefreshSessionCommand(String refreshToken) {
-        this.refreshToken = refreshToken;
-    }
-
-    public String getRefreshToken() {
-        return refreshToken;
-    }
 }

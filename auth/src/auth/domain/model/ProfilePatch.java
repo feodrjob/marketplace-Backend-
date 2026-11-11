@@ -1,6 +1,12 @@
 package auth.domain.model;
 
-//PATCH /users/me
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+// PATCH /users/me
+@Getter
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class ProfilePatch {
 
     private final String fullName;
@@ -14,30 +20,6 @@ public final class ProfilePatch {
     private final String inn;
     private final boolean innSpecified;
 
-    private ProfilePatch(
-            String fullName,
-            boolean fullNameSpecified,
-            String phone,
-            boolean phoneSpecified,
-            String companyName,
-            boolean companyNameSpecified,
-            String description,
-            boolean descriptionSpecified,
-            String inn,
-            boolean innSpecified
-    ) {
-        this.fullName = fullName;
-        this.fullNameSpecified = fullNameSpecified;
-        this.phone = phone;
-        this.phoneSpecified = phoneSpecified;
-        this.companyName = companyName;
-        this.companyNameSpecified = companyNameSpecified;
-        this.description = description;
-        this.descriptionSpecified = descriptionSpecified;
-        this.inn = inn;
-        this.innSpecified = innSpecified;
-    }
-
     public static Builder builder() {
         return new Builder();
     }
@@ -48,46 +30,6 @@ public final class ProfilePatch {
                 || companyNameSpecified
                 || descriptionSpecified
                 || innSpecified;
-    }
-
-    public String getFullName() {
-        return fullName;
-    }
-
-    public boolean isFullNameSpecified() {
-        return fullNameSpecified;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public boolean isPhoneSpecified() {
-        return phoneSpecified;
-    }
-
-    public String getCompanyName() {
-        return companyName;
-    }
-
-    public boolean isCompanyNameSpecified() {
-        return companyNameSpecified;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public boolean isDescriptionSpecified() {
-        return descriptionSpecified;
-    }
-
-    public String getInn() {
-        return inn;
-    }
-
-    public boolean isInnSpecified() {
-        return innSpecified;
     }
 
     public static final class Builder {

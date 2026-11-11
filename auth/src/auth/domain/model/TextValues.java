@@ -1,9 +1,9 @@
 package auth.domain.model;
 
-public final class TextValues {
+import lombok.experimental.UtilityClass;
 
-    private TextValues() {
-    }
+@UtilityClass
+public class TextValues {
 
     public static String trimToNull(String value) {
         if (value == null) {
