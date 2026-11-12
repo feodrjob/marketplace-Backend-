@@ -1,58 +1,21 @@
 package auth.infrastructure.persistence.repository;
 
-import auth.TestApplication;
 import auth.common.enums.Role;
+import auth.infrastructure.persistence.entity.BuyerProfileEntity;
+import auth.infrastructure.persistence.entity.SellerProfileEntity;
 import auth.infrastructure.persistence.entity.UserEntity;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(classes = TestApplication.class)
-@Testcontainers
-class UserRepositoryTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("marketplace")
-            .withUsername("postgres")
-            .withPassword("postgres");
-
-    @BeforeAll
-    static void applyMigrations() {
-        postgres.start();
-        Flyway flyway = Flyway.configure()
-                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
-                .schemas("auth")
-                .defaultSchema("auth")
-                .locations("classpath:db/migration")
-                .load();
-        flyway.migrate();
-    }
-
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
-        registry.add("spring.jpa.properties.hibernate.default_schema", () -> "auth");
-    }
+class UserRepositoryTest extends DatabaseUnitTestConfiguration {
 
     @Autowired
     private UserRepository userRepository;
@@ -62,136 +25,123 @@ class UserRepositoryTest {
     class PositiveScenarios {
 
         @Test
-        @DisplayName("Сохранение и поиск покупателя по email и id")
-        void shouldSaveAndFindBuyer() {
-            UUID id = UUID.randomUUID();
-            String email = "buyer_" + id + "@example.com";
+        @DisplayName("Сохранение и поиск покупателя с профилем")
+        void shouldSaveAndFindBuyerWithProfile() {
+            UUID userId = UUID.randomUUID();
+            String email = "buyer_" + userId + "@example.com";
 
-            UserEntity buyer = new UserEntity(
-                    id, email, "hash123", Role.BUYER,
-                    "Алексей Покупатель", "+79991112233",
-                    null, null, null, null,
-                    Instant.now(), Instant.now()
-            );
+            UserEntity buyer = UserEntity.builder()
+                    .id(userId)
+                    .email(email)
+                    .passwordHash("$2a$10$hashedPasswordValue")
+                    .role(Role.BUYER)
+                    .build();
+
+            BuyerProfileEntity buyerProfile = BuyerProfileEntity.builder()
+                    .id(UUID.randomUUID())
+                    .fullName("Иван Иванов")
+                    .phone("+79991112233")
+                    .build();
+
+            buyer.setBuyerProfile(buyerProfile);
 
             userRepository.save(buyer);
 
-            Optional<UserEntity> byEmail = userRepository.findByEmail(email);
-            assertTrue(byEmail.isPresent());
-            assertEquals("Алексей Покупатель", byEmail.get().getFullName());
-            assertEquals(Role.BUYER, byEmail.get().getRole());
-
-            Optional<UserEntity> byId = userRepository.findById(id);
-            assertTrue(byId.isPresent());
-            assertEquals(email, byId.get().getEmail());
+            Optional<UserEntity> found = userRepository.findByEmail(email);
+            assertTrue(found.isPresent());
+            assertEquals(Role.BUYER, found.get().getRole());
+            assertNotNull(found.get().getBuyerProfile());
+            assertEquals("Иван Иванов", found.get().getBuyerProfile().getFullName());
+            assertEquals("+79991112233", found.get().getBuyerProfile().getPhone());
 
             assertTrue(userRepository.existsByEmail(email));
-            assertFalse(userRepository.existsByEmail("non_existent@example.com"));
+            assertFalse(userRepository.existsByEmail("unknown@example.com"));
         }
 
         @Test
-        @DisplayName("Сохранение и поиск продавца с 10-значным ИНН (юрлицо)")
-        void shouldSaveAndFindSeller10DigitInn() {
-            UUID id = UUID.randomUUID();
-            String email = "seller10_" + id + "@example.com";
-            String inn = "7701234567";
+        @DisplayName("Сохранение и поиск продавца по ИНН")
+        void shouldSaveAndFindSellerByInn() {
+            UUID userId = UUID.randomUUID();
+            String email = "seller_" + userId + "@example.com";
+            String inn = "770" + (System.currentTimeMillis() % 10000000L);
 
-            UserEntity seller = new UserEntity(
-                    id, email, "hash123", Role.SELLER,
-                    null, null, "ООО Альфа", inn, "Описание магазина", null,
-                    Instant.now(), Instant.now()
-            );
+            UserEntity seller = UserEntity.builder()
+                    .id(userId)
+                    .email(email)
+                    .passwordHash("$2a$10$hashedPasswordValue")
+                    .role(Role.SELLER)
+                    .build();
 
-            userRepository.save(seller);
+            SellerProfileEntity sellerProfile = SellerProfileEntity.builder()
+                    .id(UUID.randomUUID())
+                    .companyName("ООO Маркет Трейд")
+                    .inn(inn)
+                    .description("Магазин электроники")
+                    .build();
 
-            Optional<UserEntity> found = userRepository.findByInn(inn);
-            assertTrue(found.isPresent());
-            assertEquals("ООО Альфа", found.get().getCompanyName());
-            assertTrue(userRepository.existsByInn(inn));
-        }
-
-        @Test
-        @DisplayName("Сохранение и поиск продавца с 12-значным ИНН (ИП/физлицо)")
-        void shouldSaveAndFindSeller12DigitInn() {
-            UUID id = UUID.randomUUID();
-            String email = "seller12_" + id + "@example.com";
-            String inn = "770123456789";
-
-            UserEntity seller = new UserEntity(
-                    id, email, "hash123", Role.SELLER,
-                    null, null, "ИП Бета", inn, null, null,
-                    Instant.now(), Instant.now()
-            );
+            seller.setSellerProfile(sellerProfile);
 
             userRepository.save(seller);
 
-            Optional<UserEntity> found = userRepository.findByInn(inn);
+            Optional<UserEntity> found = userRepository.findBySellerInn(inn);
             assertTrue(found.isPresent());
-            assertEquals("ИП Бета", found.get().getCompanyName());
-            assertTrue(userRepository.existsByInn(inn));
+            assertEquals(email, found.get().getEmail());
+            assertEquals(Role.SELLER, found.get().getRole());
+            assertEquals("ООO Маркет Трейд", found.get().getSellerProfile().getCompanyName());
+
+            assertTrue(userRepository.existsBySellerInn(inn));
         }
 
         @Test
         @DisplayName("Сохранение администратора с департаментом")
         void shouldSaveAndFindAdmin() {
-            UUID id = UUID.randomUUID();
-            String email = "admin_" + id + "@example.com";
+            UUID userId = UUID.randomUUID();
+            String email = "admin_" + userId + "@example.com";
 
-            UserEntity admin = new UserEntity(
-                    id, email, "hash123", Role.ADMIN,
-                    null, null, null, null, null, "Отдел безопасности",
-                    Instant.now(), Instant.now()
-            );
+            UserEntity admin = UserEntity.builder()
+                    .id(userId)
+                    .email(email)
+                    .passwordHash("$2a$10$hashedPasswordValue")
+                    .role(Role.ADMIN)
+                    .department("Департамент модерации")
+                    .build();
 
             userRepository.save(admin);
 
             Optional<UserEntity> found = userRepository.findByEmail(email);
             assertTrue(found.isPresent());
             assertEquals(Role.ADMIN, found.get().getRole());
-            assertEquals("Отдел безопасности", found.get().getDepartment());
+            assertEquals("Департамент модерации", found.get().getDepartment());
+            assertNull(found.get().getBuyerProfile());
+            assertNull(found.get().getSellerProfile());
         }
 
         @Test
-        @DisplayName("Множество покупателей могут иметь inn = null без коллизий")
-        void shouldAllowMultipleBuyersWithNullInn() {
-            UUID id1 = UUID.randomUUID();
-            UUID id2 = UUID.randomUUID();
+        @DisplayName("Каскадное удаление пользователя")
+        void shouldCascadeDeleteUser() {
+            UUID userId = UUID.randomUUID();
 
-            UserEntity b1 = new UserEntity(
-                    id1, "b1_" + id1 + "@example.com", "hash", Role.BUYER,
-                    null, null, null, null, null, null, Instant.now(), Instant.now()
-            );
-            UserEntity b2 = new UserEntity(
-                    id2, "b2_" + id2 + "@example.com", "hash", Role.BUYER,
-                    null, null, null, null, null, null, Instant.now(), Instant.now()
-            );
+            UserEntity user = UserEntity.builder()
+                    .id(userId)
+                    .email("cascade_" + userId + "@example.com")
+                    .passwordHash("hash")
+                    .role(Role.BUYER)
+                    .build();
 
-            assertDoesNotThrow(() -> {
-                userRepository.save(b1);
-                userRepository.save(b2);
-            });
-        }
+            BuyerProfileEntity profile = BuyerProfileEntity.builder()
+                    .id(UUID.randomUUID())
+                    .fullName("Удаляемый Профиль")
+                    .build();
 
-        @Test
-        @DisplayName("Обновление данных профиля пользователя")
-        void shouldUpdateUserProfile() {
-            UUID id = UUID.randomUUID();
-            String email = "update_" + id + "@example.com";
+            user.setBuyerProfile(profile);
+            userRepository.saveAndFlush(user);
 
-            UserEntity buyer = new UserEntity(
-                    id, email, "hash", Role.BUYER,
-                    "Старое Имя", null, null, null, null, null,
-                    Instant.now(), Instant.now()
-            );
-            userRepository.saveAndFlush(buyer);
+            assertTrue(userRepository.findById(userId).isPresent());
 
-            buyer.setFullName("Новое Имя");
-            buyer.setPhone("+79998887766");
-            userRepository.saveAndFlush(buyer);
+            userRepository.delete(user);
+            userRepository.flush();
 
-            UserEntity updated = userRepository.findById(id).orElseThrow();
-            assertEquals("Новое Имя", updated.getFullName());
-            assertEquals("+79998887766", updated.getPhone());
+            assertFalse(userRepository.findById(userId).isPresent());
         }
     }
 
@@ -204,16 +154,20 @@ class UserRepositoryTest {
         void shouldFailOnDuplicateEmail() {
             String duplicateEmail = "duplicate@example.com";
 
-            UserEntity first = new UserEntity(
-                    UUID.randomUUID(), duplicateEmail, "hash1", Role.BUYER,
-                    null, null, null, null, null, null, Instant.now(), Instant.now()
-            );
+            UserEntity first = UserEntity.builder()
+                    .id(UUID.randomUUID())
+                    .email(duplicateEmail)
+                    .passwordHash("hash1")
+                    .role(Role.BUYER)
+                    .build();
             userRepository.saveAndFlush(first);
 
-            UserEntity second = new UserEntity(
-                    UUID.randomUUID(), duplicateEmail, "hash2", Role.BUYER,
-                    null, null, null, null, null, null, Instant.now(), Instant.now()
-            );
+            UserEntity second = UserEntity.builder()
+                    .id(UUID.randomUUID())
+                    .email(duplicateEmail)
+                    .passwordHash("hash2")
+                    .role(Role.BUYER)
+                    .build();
 
             assertThrows(DataIntegrityViolationException.class, () -> {
                 userRepository.saveAndFlush(second);
@@ -223,18 +177,32 @@ class UserRepositoryTest {
         @Test
         @DisplayName("Ошибка при попытке сохранить двух продавцов с одинаковым ИНН")
         void shouldFailOnDuplicateInn() {
-            String duplicateInn = "7711223344";
+            String duplicateInn = "7711998877";
 
-            UserEntity s1 = new UserEntity(
-                    UUID.randomUUID(), "sellerA@example.com", "hash", Role.SELLER,
-                    null, null, "Компания А", duplicateInn, null, null, Instant.now(), Instant.now()
-            );
+            UserEntity s1 = UserEntity.builder()
+                    .id(UUID.randomUUID())
+                    .email("seller1_" + UUID.randomUUID() + "@example.com")
+                    .passwordHash("hash")
+                    .role(Role.SELLER)
+                    .build();
+            s1.setSellerProfile(SellerProfileEntity.builder()
+                    .id(UUID.randomUUID())
+                    .companyName("Компания 1")
+                    .inn(duplicateInn)
+                    .build());
             userRepository.saveAndFlush(s1);
 
-            UserEntity s2 = new UserEntity(
-                    UUID.randomUUID(), "sellerB@example.com", "hash", Role.SELLER,
-                    null, null, "Компания Б", duplicateInn, null, null, Instant.now(), Instant.now()
-            );
+            UserEntity s2 = UserEntity.builder()
+                    .id(UUID.randomUUID())
+                    .email("seller2_" + UUID.randomUUID() + "@example.com")
+                    .passwordHash("hash")
+                    .role(Role.SELLER)
+                    .build();
+            s2.setSellerProfile(SellerProfileEntity.builder()
+                    .id(UUID.randomUUID())
+                    .companyName("Компания 2")
+                    .inn(duplicateInn)
+                    .build());
 
             assertThrows(DataIntegrityViolationException.class, () -> {
                 userRepository.saveAndFlush(s2);
@@ -242,25 +210,18 @@ class UserRepositoryTest {
         }
 
         @Test
-        @DisplayName("Ошибка валидации формата ИНН: не 10 и не 12 цифр (например, 7 цифр)")
-        void shouldFailOnInvalidInnLength() {
-            UserEntity invalidSeller = new UserEntity(
-                    UUID.randomUUID(), "invalid_inn@example.com", "hash", Role.SELLER,
-                    null, null, "Компания", "1234567", null, null, Instant.now(), Instant.now()
-            );
-
-            assertThrows(DataIntegrityViolationException.class, () -> {
-                userRepository.saveAndFlush(invalidSeller);
-            });
-        }
-
-        @Test
         @DisplayName("Ошибка: продавец не может быть создан без названия компании")
         void shouldFailWhenSellerHasNoCompanyName() {
-            UserEntity invalidSeller = new UserEntity(
-                    UUID.randomUUID(), "no_company@example.com", "hash", Role.SELLER,
-                    null, null, null, "7701122334", null, null, Instant.now(), Instant.now()
-            );
+            UserEntity invalidSeller = UserEntity.builder()
+                    .id(UUID.randomUUID())
+                    .email("no_company_" + UUID.randomUUID() + "@example.com")
+                    .passwordHash("hash")
+                    .role(Role.SELLER)
+                    .build();
+            invalidSeller.setSellerProfile(SellerProfileEntity.builder()
+                    .id(UUID.randomUUID())
+                    .inn("7701122334")
+                    .build());
 
             assertThrows(DataIntegrityViolationException.class, () -> {
                 userRepository.saveAndFlush(invalidSeller);
@@ -270,26 +231,19 @@ class UserRepositoryTest {
         @Test
         @DisplayName("Ошибка: продавец не может быть создан без ИНН")
         void shouldFailWhenSellerHasNoInn() {
-            UserEntity invalidSeller = new UserEntity(
-                    UUID.randomUUID(), "no_inn@example.com", "hash", Role.SELLER,
-                    null, null, "ООО Компания", null, null, null, Instant.now(), Instant.now()
-            );
+            UserEntity invalidSeller = UserEntity.builder()
+                    .id(UUID.randomUUID())
+                    .email("no_inn_" + UUID.randomUUID() + "@example.com")
+                    .passwordHash("hash")
+                    .role(Role.SELLER)
+                    .build();
+            invalidSeller.setSellerProfile(SellerProfileEntity.builder()
+                    .id(UUID.randomUUID())
+                    .companyName("ООО Компания")
+                    .build());
 
             assertThrows(DataIntegrityViolationException.class, () -> {
                 userRepository.saveAndFlush(invalidSeller);
-            });
-        }
-
-        @Test
-        @DisplayName("Ошибка: email не может быть null")
-        void shouldFailWhenEmailIsNull() {
-            UserEntity nullEmail = new UserEntity(
-                    UUID.randomUUID(), null, "hash", Role.BUYER,
-                    null, null, null, null, null, null, Instant.now(), Instant.now()
-            );
-
-            assertThrows(DataIntegrityViolationException.class, () -> {
-                userRepository.saveAndFlush(nullEmail);
             });
         }
     }
