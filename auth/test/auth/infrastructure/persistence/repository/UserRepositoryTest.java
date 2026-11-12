@@ -27,30 +27,29 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
         @Test
         @DisplayName("Сохранение и поиск покупателя с профилем")
         void shouldSaveAndFindBuyerWithProfile() {
-            UUID userId = UUID.randomUUID();
-            String email = "buyer_" + userId + "@example.com";
+            String email = "buyer_" + UUID.randomUUID() + "@example.com";
 
             UserEntity buyer = UserEntity.builder()
-                    .id(userId)
                     .email(email)
                     .passwordHash("$2a$10$hashedPasswordValue")
                     .role(Role.BUYER)
                     .build();
 
             BuyerProfileEntity buyerProfile = BuyerProfileEntity.builder()
-                    .id(UUID.randomUUID())
                     .fullName("Иван Иванов")
                     .phone("+79991112233")
                     .build();
 
             buyer.setBuyerProfile(buyerProfile);
 
-            userRepository.save(buyer);
+            UserEntity saved = userRepository.save(buyer);
+            assertNotNull(saved.getId());
 
             Optional<UserEntity> found = userRepository.findByEmail(email);
             assertTrue(found.isPresent());
             assertEquals(Role.BUYER, found.get().getRole());
             assertNotNull(found.get().getBuyerProfile());
+            assertNotNull(found.get().getBuyerProfile().getId());
             assertEquals("Иван Иванов", found.get().getBuyerProfile().getFullName());
             assertEquals("+79991112233", found.get().getBuyerProfile().getPhone());
 
@@ -61,19 +60,16 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
         @Test
         @DisplayName("Сохранение и поиск продавца по ИНН")
         void shouldSaveAndFindSellerByInn() {
-            UUID userId = UUID.randomUUID();
-            String email = "seller_" + userId + "@example.com";
+            String email = "seller_" + UUID.randomUUID() + "@example.com";
             String inn = "770" + (System.currentTimeMillis() % 10000000L);
 
             UserEntity seller = UserEntity.builder()
-                    .id(userId)
                     .email(email)
                     .passwordHash("$2a$10$hashedPasswordValue")
                     .role(Role.SELLER)
                     .build();
 
             SellerProfileEntity sellerProfile = SellerProfileEntity.builder()
-                    .id(UUID.randomUUID())
                     .companyName("ООO Маркет Трейд")
                     .inn(inn)
                     .description("Магазин электроники")
@@ -81,7 +77,8 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
 
             seller.setSellerProfile(sellerProfile);
 
-            userRepository.save(seller);
+            UserEntity saved = userRepository.save(seller);
+            assertNotNull(saved.getId());
 
             Optional<UserEntity> found = userRepository.findBySellerInn(inn);
             assertTrue(found.isPresent());
@@ -95,18 +92,17 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
         @Test
         @DisplayName("Сохранение администратора с департаментом")
         void shouldSaveAndFindAdmin() {
-            UUID userId = UUID.randomUUID();
-            String email = "admin_" + userId + "@example.com";
+            String email = "admin_" + UUID.randomUUID() + "@example.com";
 
             UserEntity admin = UserEntity.builder()
-                    .id(userId)
                     .email(email)
                     .passwordHash("$2a$10$hashedPasswordValue")
                     .role(Role.ADMIN)
                     .department("Департамент модерации")
                     .build();
 
-            userRepository.save(admin);
+            UserEntity saved = userRepository.save(admin);
+            assertNotNull(saved.getId());
 
             Optional<UserEntity> found = userRepository.findByEmail(email);
             assertTrue(found.isPresent());
@@ -119,26 +115,23 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
         @Test
         @DisplayName("Каскадное удаление пользователя")
         void shouldCascadeDeleteUser() {
-            UUID userId = UUID.randomUUID();
-
             UserEntity user = UserEntity.builder()
-                    .id(userId)
-                    .email("cascade_" + userId + "@example.com")
+                    .email("cascade_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.BUYER)
                     .build();
 
             BuyerProfileEntity profile = BuyerProfileEntity.builder()
-                    .id(UUID.randomUUID())
                     .fullName("Удаляемый Профиль")
                     .build();
 
             user.setBuyerProfile(profile);
-            userRepository.saveAndFlush(user);
+            UserEntity saved = userRepository.saveAndFlush(user);
 
+            UUID userId = saved.getId();
             assertTrue(userRepository.findById(userId).isPresent());
 
-            userRepository.delete(user);
+            userRepository.delete(saved);
             userRepository.flush();
 
             assertFalse(userRepository.findById(userId).isPresent());
@@ -155,7 +148,6 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             String duplicateEmail = "duplicate@example.com";
 
             UserEntity first = UserEntity.builder()
-                    .id(UUID.randomUUID())
                     .email(duplicateEmail)
                     .passwordHash("hash1")
                     .role(Role.BUYER)
@@ -163,7 +155,6 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             userRepository.saveAndFlush(first);
 
             UserEntity second = UserEntity.builder()
-                    .id(UUID.randomUUID())
                     .email(duplicateEmail)
                     .passwordHash("hash2")
                     .role(Role.BUYER)
@@ -180,26 +171,22 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             String duplicateInn = "7711998877";
 
             UserEntity s1 = UserEntity.builder()
-                    .id(UUID.randomUUID())
                     .email("seller1_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.SELLER)
                     .build();
             s1.setSellerProfile(SellerProfileEntity.builder()
-                    .id(UUID.randomUUID())
                     .companyName("Компания 1")
                     .inn(duplicateInn)
                     .build());
             userRepository.saveAndFlush(s1);
 
             UserEntity s2 = UserEntity.builder()
-                    .id(UUID.randomUUID())
                     .email("seller2_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.SELLER)
                     .build();
             s2.setSellerProfile(SellerProfileEntity.builder()
-                    .id(UUID.randomUUID())
                     .companyName("Компания 2")
                     .inn(duplicateInn)
                     .build());
@@ -213,13 +200,11 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
         @DisplayName("Ошибка: продавец не может быть создан без названия компании")
         void shouldFailWhenSellerHasNoCompanyName() {
             UserEntity invalidSeller = UserEntity.builder()
-                    .id(UUID.randomUUID())
                     .email("no_company_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.SELLER)
                     .build();
             invalidSeller.setSellerProfile(SellerProfileEntity.builder()
-                    .id(UUID.randomUUID())
                     .inn("7701122334")
                     .build());
 
@@ -232,13 +217,11 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
         @DisplayName("Ошибка: продавец не может быть создан без ИНН")
         void shouldFailWhenSellerHasNoInn() {
             UserEntity invalidSeller = UserEntity.builder()
-                    .id(UUID.randomUUID())
                     .email("no_inn_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.SELLER)
                     .build();
             invalidSeller.setSellerProfile(SellerProfileEntity.builder()
-                    .id(UUID.randomUUID())
                     .companyName("ООО Компания")
                     .build());
 
