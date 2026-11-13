@@ -1,0 +1,39 @@
+services:
+  auth:
+    build:
+      context: .
+      dockerfile: auth/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_BIND:-127.0.0.1}:${BACKEND_PORT:-8080}:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/marketplace
+      SPRING_DATASOURCE_USERNAME: marketplace
+      SPRING_DATASOURCE_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "true > /dev/tcp/127.0.0.1/8081"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 12
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: marketplace
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "marketplace", "-d", "marketplace"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  postgres-data:
