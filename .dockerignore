@@ -1,5 +1,4 @@
 **
-!Dockerfile
 !gradlew
 !gradle/
 !gradle/**
@@ -7,8 +6,6 @@
 !build.gradle
 !auth/
 !auth/**
-!src/
-!src/**
 
 **/.git
 **/.gradle
