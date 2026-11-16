@@ -1,8 +1,10 @@
 package auth.exception;
 
-public class InvalidInnException extends AuthException {
+public class InvalidInnException extends FieldValidationException {
+
+    public static final String FIELD = "inn";
 
     public InvalidInnException(String message) {
-        super(message);
+        super(FIELD, message);
     }
 }

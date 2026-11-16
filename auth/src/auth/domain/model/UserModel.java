@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.ToString;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -149,8 +151,18 @@ public final class UserModel {
     }
 
     private UserModel applyBuyer(ProfilePatch patch, Instant now) {
-        rejectIfSpecified(patch.isCompanyNameSpecified() || patch.isDescriptionSpecified() || patch.isInnSpecified(),
-                "Покупатель может изменять только имя и телефон");
+        String buyerOnly = "Buyer can only change name and phone";
+        Map<String, String> rejected = new LinkedHashMap<>();
+        if (patch.isCompanyNameSpecified()) {
+            rejected.put("companyName", buyerOnly);
+        }
+        if (patch.isDescriptionSpecified()) {
+            rejected.put("description", buyerOnly);
+        }
+        if (patch.isInnSpecified()) {
+            rejected.put("inn", buyerOnly);
+        }
+        rejectIfAny(rejected);
         String newName = patch.isFullNameSpecified() ? TextValues.trimToNull(patch.getFullName()) : fullName;
         String newPhone = patch.isPhoneSpecified() ? TextValues.trimToNull(patch.getPhone()) : phone;
         if (Objects.equals(newName, fullName) && Objects.equals(newPhone, phone)) {
@@ -160,19 +172,26 @@ public final class UserModel {
     }
 
     private UserModel applySeller(ProfilePatch patch, Instant now) {
-        rejectIfSpecified(patch.isFullNameSpecified() || patch.isPhoneSpecified(),
-                "Продавец может изменять только название компании и описание");
+        String sellerOnly = "Seller can only change company name and description";
+        Map<String, String> rejected = new LinkedHashMap<>();
+        if (patch.isFullNameSpecified()) {
+            rejected.put("fullName", sellerOnly);
+        }
+        if (patch.isPhoneSpecified()) {
+            rejected.put("phone", sellerOnly);
+        }
         if (patch.isInnSpecified()) {
             String requested = TextValues.trimToNull(patch.getInn());
             if (!inn.equals(requested)) {
-                throw new ProfileUpdateNotAllowedException("ИНН нельзя изменить после регистрации");
+                rejected.put("inn", "INN cannot be changed after registration");
             }
         }
+        rejectIfAny(rejected);
         String newCompany = companyName;
         if (patch.isCompanyNameSpecified()) {
             newCompany = TextValues.trimToNull(patch.getCompanyName());
             if (newCompany == null) {
-                throw new ValidationException("Название компании не может быть пустым");
+                throw new ValidationException("companyName", "Company name cannot be empty");
             }
         }
         String newDescription = description;
@@ -186,7 +205,24 @@ public final class UserModel {
     }
 
     private UserModel applyAdmin(ProfilePatch patch) {
-        rejectIfSpecified(patch.hasAnyField(), "Профиль администратора нельзя изменить через этот сценарий");
+        String adminLocked = "Admin profile cannot be changed through this scenario";
+        Map<String, String> rejected = new LinkedHashMap<>();
+        if (patch.isFullNameSpecified()) {
+            rejected.put("fullName", adminLocked);
+        }
+        if (patch.isPhoneSpecified()) {
+            rejected.put("phone", adminLocked);
+        }
+        if (patch.isCompanyNameSpecified()) {
+            rejected.put("companyName", adminLocked);
+        }
+        if (patch.isDescriptionSpecified()) {
+            rejected.put("description", adminLocked);
+        }
+        if (patch.isInnSpecified()) {
+            rejected.put("inn", adminLocked);
+        }
+        rejectIfAny(rejected);
         return this;
     }
 
@@ -236,31 +272,31 @@ public final class UserModel {
                 requireAbsent(inn, "inn");
                 requireAbsent(description, "description");
             }
-            default -> throw new IllegalArgumentException("Неизвестная роль");
+            default -> throw new IllegalArgumentException("Unknown role");
         }
     }
 
-    private static void rejectIfSpecified(boolean specified, String message) {
-        if (specified) {
-            throw new ProfileUpdateNotAllowedException(message);
+    private static void rejectIfAny(Map<String, String> rejected) {
+        if (!rejected.isEmpty()) {
+            throw new ProfileUpdateNotAllowedException(rejected);
         }
     }
 
     private static void requireAbsent(String value, String field) {
         if (value != null) {
-            throw new IllegalArgumentException("Поле " + field + " не относится к этой роли");
+            throw new IllegalArgumentException("Field " + field + " does not belong to this role");
         }
     }
 
     private static void requirePresent(String value, String field) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Поле " + field + " обязательно для этой роли");
+            throw new IllegalArgumentException("Field " + field + " is required for this role");
         }
     }
 
     private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Поле " + field + " обязательно");
+            throw new IllegalArgumentException("Field " + field + " is required");
         }
         return value;
     }

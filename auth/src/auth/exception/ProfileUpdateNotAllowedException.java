@@ -1,8 +1,14 @@
 package auth.exception;
 
-public class ProfileUpdateNotAllowedException extends AuthException {
+import java.util.Map;
 
-    public ProfileUpdateNotAllowedException(String message) {
-        super(message);
+public class ProfileUpdateNotAllowedException extends FieldValidationException {
+
+    public ProfileUpdateNotAllowedException(String field, String message) {
+        super(field, message);
+    }
+
+    public ProfileUpdateNotAllowedException(Map<String, String> details) {
+        super(details);
     }
 }

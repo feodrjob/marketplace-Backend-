@@ -24,17 +24,17 @@ public final class TokenSettings {
     public TokenSettings(byte[] hmacSecret, Duration accessTtl, Duration refreshTtl, String issuer) {
         if (hmacSecret == null || hmacSecret.length < HMAC_MIN_BYTES) {
             throw new IllegalArgumentException(
-                    "Секрет подписи JWT должен быть не короче " + HMAC_MIN_BYTES + " байт"
+                    "JWT signing secret must be at least " + HMAC_MIN_BYTES + " bytes"
             );
         }
         if (accessTtl == null || accessTtl.isZero() || accessTtl.isNegative()) {
-            throw new IllegalArgumentException("Время жизни access-токена должно быть положительным");
+            throw new IllegalArgumentException("Access token lifetime must be positive");
         }
         if (refreshTtl == null || refreshTtl.compareTo(accessTtl) <= 0) {
-            throw new IllegalArgumentException("Refresh-токен должен жить дольше access-токена");
+            throw new IllegalArgumentException("Refresh token must live longer than the access token");
         }
         if (issuer == null || issuer.isBlank()) {
-            throw new IllegalArgumentException("Issuer токена обязателен");
+            throw new IllegalArgumentException("Token issuer is required");
         }
         this.hmacSecret = Arrays.copyOf(hmacSecret, hmacSecret.length);
         this.accessTtl = accessTtl;

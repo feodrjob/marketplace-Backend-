@@ -102,7 +102,7 @@ class UserControllerTest {
         @DisplayName("401: недействительный access токен")
         void shouldReturn401WhenTokenIsInvalid() throws Exception {
             when(userService.getProfile(eq("invalid.access.jwt")))
-                    .thenThrow(new InvalidTokenException("Сессия недействительна или истекла"));
+                    .thenThrow(new InvalidTokenException("Session is invalid or expired"));
 
             mockMvc.perform(get("/api/v1/users/me")
                             .header(HttpHeaders.AUTHORIZATION, "Bearer invalid.access.jwt"))
@@ -156,7 +156,7 @@ class UserControllerTest {
         @DisplayName("422: попытка изменить ИНН вызывает ошибку 422")
         void shouldReturn422WhenAttemptingToChangeInn() throws Exception {
             when(userService.updateProfile(any(UpdateProfileCommand.class)))
-                    .thenThrow(new ProfileUpdateNotAllowedException("ИНН нельзя изменить после регистрации"));
+                    .thenThrow(new ProfileUpdateNotAllowedException("inn", "INN cannot be changed after registration"));
 
             String requestJson = """
                     {

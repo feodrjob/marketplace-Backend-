@@ -10,11 +10,11 @@ public final class InnPolicy {
 
     public String canonicalize(String rawInn) {
         if (rawInn == null || rawInn.isBlank()) {
-            throw new ValidationException("ИНН обязателен");
+            throw new ValidationException(InvalidInnException.FIELD, "INN is required");
         }
         String inn = rawInn.trim();
         if (!isAsciiDigits(inn) || (inn.length() != LEGAL_ENTITY_LENGTH && inn.length() != INDIVIDUAL_LENGTH)) {
-            throw new InvalidInnException("ИНН должен состоять из 10 или 12 цифр");
+            throw new InvalidInnException("INN must consist of 10 or 12 digits");
         }
         return inn;
     }

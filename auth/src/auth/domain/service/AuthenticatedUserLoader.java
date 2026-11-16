@@ -21,6 +21,6 @@ final class AuthenticatedUserLoader {
     UserModel load(String accessToken) {
         TokenClaims claims = tokenService.verify(accessToken, TokenUse.ACCESS);
         return users.findById(claims.getUserId())
-                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
+                .orElseThrow(() -> new UserNotFoundException("Session is invalid or expired"));
     }
 }

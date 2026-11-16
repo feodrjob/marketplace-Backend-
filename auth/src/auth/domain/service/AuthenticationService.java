@@ -24,9 +24,9 @@ import java.util.Objects;
 
 public final class AuthenticationService {
 
-    private static final String DUPLICATE_EMAIL = "Пользователь с таким email уже зарегистрирован";
-    private static final String BAD_CREDENTIALS = "Неверный email или пароль";
-    private static final String BLANK_COMPANY = "Название компании обязательно";
+    private static final String DUPLICATE_EMAIL = "User with this email is already registered";
+    private static final String BAD_CREDENTIALS = "Invalid email or password";
+    private static final String BLANK_COMPANY = "Company name is required";
 
     private static final String TIMING_EQUALIZER = "timing-equalizer";
 
@@ -88,7 +88,7 @@ public final class AuthenticationService {
         passwordPolicy.check(command.getPassword());
         String companyName = TextValues.trimToNull(command.getCompanyName());
         if (companyName == null) {
-            throw new ValidationException(BLANK_COMPANY);
+            throw new ValidationException("companyName", BLANK_COMPANY);
         }
         String inn = innPolicy.canonicalize(command.getInn());
         ensureEmailIsFree(email);
@@ -123,7 +123,7 @@ public final class AuthenticationService {
         Objects.requireNonNull(command, "command");
         TokenClaims claims = tokenService.verify(command.getRefreshToken(), TokenUse.REFRESH);
         UserModel user = users.findById(claims.getUserId())
-                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
+                .orElseThrow(() -> new UserNotFoundException("Session is invalid or expired"));
         return openSession(user);
     }
 

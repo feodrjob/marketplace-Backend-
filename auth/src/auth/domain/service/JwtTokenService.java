@@ -56,19 +56,19 @@ public final class JwtTokenService implements TokenService {
     public TokenClaims verify(String token, TokenUse expectedUse) {
         Objects.requireNonNull(expectedUse, "expectedUse");
         if (token == null || token.isBlank()) {
-            throw new InvalidTokenException("Токен отсутствует");
+            throw new InvalidTokenException("Active access token required");
         }
         try {
             Claims claims = parser.parseSignedClaims(token.trim()).getPayload();
             TokenUse actualUse = readUse(claims);
             if (actualUse != expectedUse) {
-                throw new InvalidTokenException("Токен не подходит для этой операции");
+                throw new InvalidTokenException("Session is invalid or expired");
             }
             String subject = claims.getSubject();
             String email = claims.get(CLAIM_EMAIL, String.class);
             String role = claims.get(CLAIM_ROLE, String.class);
             if (subject == null || email == null || role == null || claims.getExpiration() == null) {
-                throw new InvalidTokenException("Сессия недействительна или истекла");
+                throw new InvalidTokenException("Session is invalid or expired");
             }
             return new TokenClaims(
                     UUID.fromString(subject),
@@ -80,7 +80,7 @@ public final class JwtTokenService implements TokenService {
         } catch (InvalidTokenException exception) {
             throw exception;
         } catch (JwtException | IllegalArgumentException exception) {
-            throw new InvalidTokenException("Сессия недействительна или истекла");
+            throw new InvalidTokenException("Session is invalid or expired");
         }
     }
 
@@ -101,7 +101,7 @@ public final class JwtTokenService implements TokenService {
     private static TokenUse readUse(Claims claims) {
         String rawUse = claims.get(CLAIM_USE, String.class);
         if (rawUse == null) {
-            throw new InvalidTokenException("Токен не подходит для этой операции");
+            throw new InvalidTokenException("Session is invalid or expired");
         }
         return TokenUse.valueOf(rawUse);
     }

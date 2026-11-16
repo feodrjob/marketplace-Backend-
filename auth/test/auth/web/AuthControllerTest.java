@@ -157,7 +157,7 @@ class AuthControllerTest {
         @DisplayName("409: конфликт если email уже занят")
         void shouldReturn409WhenEmailAlreadyExists() throws Exception {
             when(authenticationService.registerBuyer(any(RegisterBuyerCommand.class)))
-                    .thenThrow(new EmailAlreadyUsedException("Пользователь с таким email уже зарегистрирован"));
+                    .thenThrow(new EmailAlreadyUsedException("User with this email is already registered"));
 
             String requestJson = """
                     {
@@ -275,7 +275,7 @@ class AuthControllerTest {
         @DisplayName("401: неверный email или пароль")
         void shouldReturn401WhenCredentialsAreInvalid() throws Exception {
             when(authenticationService.signIn(any(SignInCommand.class)))
-                    .thenThrow(new InvalidCredentialsException("Неверный email или пароль"));
+                    .thenThrow(new InvalidCredentialsException("Invalid email or password"));
 
             String requestJson = """
                     {
@@ -326,7 +326,7 @@ class AuthControllerTest {
         @DisplayName("401: недействительный или истёкший токен")
         void shouldReturn401WhenRefreshTokenIsInvalid() throws Exception {
             when(authenticationService.refresh(any(RefreshSessionCommand.class)))
-                    .thenThrow(new InvalidTokenException("Сессия недействительна или истекла"));
+                    .thenThrow(new InvalidTokenException("Session is invalid or expired"));
 
             mockMvc.perform(post("/api/v1/auth/refresh")
                             .cookie(new Cookie("refreshToken", "expired.jwt")))
@@ -366,7 +366,7 @@ class AuthControllerTest {
         @Test
         @DisplayName("401: access токен недействителен")
         void shouldReturn401WhenAccessTokenIsInvalid() throws Exception {
-            doThrow(new InvalidTokenException("Требуется действующий access-токен"))
+            doThrow(new InvalidTokenException("Active access token required"))
                     .when(authenticationService).logout(any(LogoutCommand.class));
 
             mockMvc.perform(post("/api/v1/auth/logout")

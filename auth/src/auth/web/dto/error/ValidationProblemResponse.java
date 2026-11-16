@@ -21,7 +21,6 @@ public class ValidationProblemResponse {
     private String type;
     private String title;
     private int status;
-    private String detail;
     private Map<String, String> details;
     private String instance;
     private Instant timestamp;

@@ -6,7 +6,7 @@ public final class PasswordPolicy {
 
     public void check(String rawPassword) {
         if (rawPassword == null || rawPassword.isBlank()) {
-            throw new ValidationException("Пароль обязателен");
+            throw new ValidationException("password", "Password is required");
         }
     }
 }

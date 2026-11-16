@@ -80,7 +80,7 @@ class AuthenticationServiceTest {
                 EmailAlreadyUsedException.class,
                 () -> fixture.authentication.registerSeller(sellerCommand(BUYER_EMAIL, "7707083893"))
         );
-        assertEquals("Пользователь с таким email уже зарегистрирован", error.getMessage());
+        assertEquals("User with this email is already registered", error.getMessage());
         assertEquals(Role.BUYER, fixture.users.findByEmail(BUYER_EMAIL).orElseThrow().getRole());
     }
 

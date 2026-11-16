@@ -39,7 +39,7 @@ public final class InMemoryUserModelRepository implements UserModelRepository {
         findByEmail(user.getEmail())
                 .filter(existing -> !existing.getId().equals(user.getId()))
                 .ifPresent(existing -> {
-                    throw new EmailAlreadyUsedException("Пользователь с таким email уже зарегистрирован");
+                    throw new EmailAlreadyUsedException("User with this email is already registered");
                 });
         usersById.put(user.getId(), user);
         return user;
