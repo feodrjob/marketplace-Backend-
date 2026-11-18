@@ -1,3 +1,4 @@
 rootProject.name = 'marketplace-Backend'
 
 include 'auth'
+include 'catalog'
