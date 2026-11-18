@@ -21,19 +21,21 @@ public interface ProductRepository extends JpaRepository<ProductEntity, UUID>, J
 
     Page<ProductEntity> findAllByStatus(ProductStatus status, Pageable pageable);
 
-    Page<ProductEntity> findAllByStatusAndCategory(ProductStatus status, String category, Pageable pageable);
+    Page<ProductEntity> findAllByStatusAndCategoryId(ProductStatus status, UUID categoryId, Pageable pageable);
 
-    Page<ProductEntity> findAllByStatusAndCategoryIn(ProductStatus status, Collection<String> categories, Pageable pageable);
+    Page<ProductEntity> findAllByStatusAndCategoryIdIn(ProductStatus status, Collection<UUID> categoryIds, Pageable pageable);
 
     Page<ProductEntity> findAllBySellerId(UUID sellerId, Pageable pageable);
 
     Page<ProductEntity> findAllBySellerIdAndStatus(UUID sellerId, ProductStatus status, Pageable pageable);
 
-    Page<ProductEntity> findAllBySellerIdAndCategory(UUID sellerId, String category, Pageable pageable);
+    Page<ProductEntity> findAllBySellerIdAndCategoryId(UUID sellerId, UUID categoryId, Pageable pageable);
 
     boolean existsByIdAndStatus(UUID id, ProductStatus status);
 
     boolean existsBySellerId(UUID sellerId);
+
+    boolean existsByCategoryId(UUID categoryId);
 
     @Query(value = "SELECT * FROM catalog.products WHERE status = 'ACTIVE' AND search_vector @@ plainto_tsquery('russian', :query)",
            countQuery = "SELECT count(*) FROM catalog.products WHERE status = 'ACTIVE' AND search_vector @@ plainto_tsquery('russian', :query)",

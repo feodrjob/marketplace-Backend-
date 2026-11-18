@@ -10,6 +10,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
@@ -34,7 +36,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
-@ToString(exclude = "images")
+@ToString(exclude = {"images", "category"})
 @Entity
 @Table(name = "products", schema = "catalog")
 public class ProductEntity {
@@ -48,11 +50,15 @@ public class ProductEntity {
     @Column(name = "seller_id", nullable = false)
     private UUID sellerId;
 
+    @Column(name = "category_id", nullable = false)
+    private UUID categoryId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", insertable = false, updatable = false)
+    private CategoryEntity category;
+
     @Column(name = "title", nullable = false, length = 255)
     private String title;
-
-    @Column(name = "category", nullable = false, length = 255)
-    private String category;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;

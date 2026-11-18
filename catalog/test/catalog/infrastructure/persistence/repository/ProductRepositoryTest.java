@@ -1,9 +1,11 @@
 package catalog.infrastructure.persistence.repository;
 
 import catalog.common.enums.ProductStatus;
+import catalog.infrastructure.persistence.entity.CategoryEntity;
 import catalog.infrastructure.persistence.entity.ProductEntity;
 import catalog.infrastructure.persistence.entity.ProductImageEntity;
 import catalog.infrastructure.persistence.entity.ProductImageId;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,7 +31,31 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
     private ProductImageRepository productImageRepository;
 
     @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Autowired
     private jakarta.persistence.EntityManager entityManager;
+
+    private CategoryEntity defaultCategory;
+
+    @BeforeEach
+    void setUp() {
+        defaultCategory = categoryRepository.save(CategoryEntity.builder()
+                .name("Общая категория")
+                .slug("general-" + UUID.randomUUID())
+                .sortOrder(0)
+                .isActive(true)
+                .build());
+    }
+
+    private CategoryEntity createCategory(String name, String slugPrefix) {
+        return categoryRepository.save(CategoryEntity.builder()
+                .name(name)
+                .slug(slugPrefix + "-" + UUID.randomUUID())
+                .sortOrder(1)
+                .isActive(true)
+                .build());
+    }
 
     @Nested
     @DisplayName("Позитивные сценарии (CRUD, фильтрация, связи и полнотекстовый поиск)")
@@ -39,10 +65,12 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
         @DisplayName("Сохранение и поиск активного товара без изображений")
         void shouldSaveAndFindProductWithoutImages() {
             UUID sellerId = UUID.randomUUID();
+            CategoryEntity category = createCategory("Электроника", "electronics");
+
             ProductEntity product = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(category.getId())
                     .title("Ноутбук Pro 16")
-                    .category("electronics")
                     .description("Мощный рабочий ноутбук с отличным экраном")
                     .price(150000L)
                     .status(ProductStatus.ACTIVE)
@@ -56,7 +84,7 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
             Optional<ProductEntity> found = productRepository.findById(saved.getId());
             assertTrue(found.isPresent());
             assertEquals("Ноутбук Pro 16", found.get().getTitle());
-            assertEquals("electronics", found.get().getCategory());
+            assertEquals(category.getId(), found.get().getCategoryId());
             assertEquals(150000L, found.get().getPrice());
             assertEquals(ProductStatus.ACTIVE, found.get().getStatus());
             assertEquals(sellerId, found.get().getSellerId());
@@ -64,6 +92,7 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
             assertTrue(productRepository.existsByIdAndStatus(saved.getId(), ProductStatus.ACTIVE));
             assertFalse(productRepository.existsByIdAndStatus(saved.getId(), ProductStatus.HIDDEN));
             assertTrue(productRepository.existsBySellerId(sellerId));
+            assertTrue(productRepository.existsByCategoryId(category.getId()));
         }
 
         @Test
@@ -73,11 +102,12 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
             UUID sellerId = UUID.randomUUID();
             UUID mediaId1 = UUID.randomUUID();
             UUID mediaId2 = UUID.randomUUID();
+            CategoryEntity category = createCategory("Одежда", "clothing");
 
             ProductEntity product = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(category.getId())
                     .title("Кожаная куртка")
-                    .category("clothing")
                     .description("Стильная осенняя куртка")
                     .price(12000L)
                     .status(ProductStatus.ACTIVE)
@@ -106,35 +136,36 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
         @DisplayName("Выборка активных товаров с пагинацией и сортировкой по цене")
         void shouldFindActiveProductsWithPaginationAndSorting() {
             UUID sellerId = UUID.randomUUID();
+            CategoryEntity category = createCategory("Гаджеты", "gadgets");
 
             ProductEntity cheapActive = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(category.getId())
                     .title("Чехол для телефона")
-                    .category("accessories")
                     .price(500L)
                     .status(ProductStatus.ACTIVE)
                     .build();
 
             ProductEntity expensiveActive = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(category.getId())
                     .title("Смартфон Ultra")
-                    .category("electronics")
                     .price(80000L)
                     .status(ProductStatus.ACTIVE)
                     .build();
 
             ProductEntity hiddenProduct = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(category.getId())
                     .title("Скрытый кабель")
-                    .category("accessories")
                     .price(100L)
                     .status(ProductStatus.HIDDEN)
                     .build();
 
             ProductEntity archivedProduct = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(category.getId())
                     .title("Архивный адаптер")
-                    .category("accessories")
                     .price(200L)
                     .status(ProductStatus.ARCHIVED)
                     .build();
@@ -160,36 +191,38 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
         @DisplayName("Фильтрация активных товаров по категории и нескольким категориям")
         void shouldFilterActiveProductsByCategory() {
             UUID sellerId = UUID.randomUUID();
+            CategoryEntity booksCat = createCategory("Книги", "books");
+            CategoryEntity gadgetsCat = createCategory("Гаджеты", "gadgets");
 
             ProductEntity book = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(booksCat.getId())
                     .title("Чистая архитектура")
-                    .category("books")
                     .price(2500L)
                     .status(ProductStatus.ACTIVE)
                     .build();
 
             ProductEntity gadget = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(gadgetsCat.getId())
                     .title("Умные часы")
-                    .category("gadgets")
                     .price(15000L)
                     .status(ProductStatus.ACTIVE)
                     .build();
 
             productRepository.saveAll(List.of(book, gadget));
 
-            Page<ProductEntity> booksPage = productRepository.findAllByStatusAndCategory(
+            Page<ProductEntity> booksPage = productRepository.findAllByStatusAndCategoryId(
                     ProductStatus.ACTIVE,
-                    "books",
+                    booksCat.getId(),
                     PageRequest.of(0, 10)
             );
             assertTrue(booksPage.getContent().stream().anyMatch(p -> p.getTitle().equals("Чистая архитектура")));
             assertTrue(booksPage.getContent().stream().noneMatch(p -> p.getTitle().equals("Умные часы")));
 
-            Page<ProductEntity> multipleCategoriesPage = productRepository.findAllByStatusAndCategoryIn(
+            Page<ProductEntity> multipleCategoriesPage = productRepository.findAllByStatusAndCategoryIdIn(
                     ProductStatus.ACTIVE,
-                    List.of("books", "gadgets"),
+                    List.of(booksCat.getId(), gadgetsCat.getId()),
                     PageRequest.of(0, 10)
             );
             assertTrue(multipleCategoriesPage.getContent().stream().anyMatch(p -> p.getTitle().equals("Чистая архитектура")));
@@ -197,22 +230,23 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
         }
 
         @Test
-        @DisplayName("Поиск товаров продавца с фильтрацией по статусу")
+        @DisplayName("Поиск товаров продавца с фильтрацией по статусу и категории")
         void shouldFindProductsBySellerIdAndFilterByStatus() {
             UUID sellerId = UUID.randomUUID();
+            CategoryEntity cat = createCategory("Товары продавца", "seller-cat");
 
             ProductEntity active = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(cat.getId())
                     .title("Товар 1 продавца")
-                    .category("general")
                     .price(1000L)
                     .status(ProductStatus.ACTIVE)
                     .build();
 
             ProductEntity hidden = ProductEntity.builder()
                     .sellerId(sellerId)
+                    .categoryId(cat.getId())
                     .title("Товар 2 продавца (скрытый)")
-                    .category("general")
                     .price(2000L)
                     .status(ProductStatus.HIDDEN)
                     .build();
@@ -225,6 +259,9 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
             Page<ProductEntity> hiddenOnly = productRepository.findAllBySellerIdAndStatus(sellerId, ProductStatus.HIDDEN, PageRequest.of(0, 10));
             assertEquals(1, hiddenOnly.getTotalElements());
             assertEquals("Товар 2 продавца (скрытый)", hiddenOnly.getContent().get(0).getTitle());
+
+            Page<ProductEntity> sellerCategoryPage = productRepository.findAllBySellerIdAndCategoryId(sellerId, cat.getId(), PageRequest.of(0, 10));
+            assertEquals(2, sellerCategoryPage.getTotalElements());
         }
 
         @Test
@@ -232,8 +269,8 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
         void shouldUpdateProductDetailsAndStatus() {
             ProductEntity product = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(defaultCategory.getId())
                     .title("Оригинальный заголовок")
-                    .category("books")
                     .price(1000L)
                     .status(ProductStatus.ACTIVE)
                     .build();
@@ -256,8 +293,8 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
             UUID mediaId = UUID.randomUUID();
             ProductEntity product = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(defaultCategory.getId())
                     .title("Товар для удаления")
-                    .category("test")
                     .price(999L)
                     .status(ProductStatus.ACTIVE)
                     .build();
@@ -283,8 +320,8 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
 
             ProductEntity product = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(defaultCategory.getId())
                     .title("Товар с двумя фото")
-                    .category("test")
                     .price(500L)
                     .status(ProductStatus.ACTIVE)
                     .build();
@@ -308,10 +345,13 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
         @Test
         @DisplayName("Полнотекстовый поиск по русской морфологии через search_vector")
         void shouldPerformFullTextSearchInRussian() {
+            CategoryEntity audioCat = createCategory("Аудиотехника", "audio");
+            CategoryEntity appCat = createCategory("Бытовая техника", "appliances");
+
             ProductEntity p1 = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(audioCat.getId())
                     .title("Флагманские беспроводные наушники")
-                    .category("audio")
                     .description("Превосходное шумоподавление и кристальный звук")
                     .price(25000L)
                     .status(ProductStatus.ACTIVE)
@@ -319,8 +359,8 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
 
             ProductEntity p2 = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(appCat.getId())
                     .title("Электрический чайник из стали")
-                    .category("appliances")
                     .description("Быстрое кипячение воды с подсветкой")
                     .price(3500L)
                     .status(ProductStatus.ACTIVE)
@@ -345,10 +385,12 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
         @Test
         @DisplayName("Нечеткий поиск (триграммы) с устойчивостью к опечаткам")
         void shouldSupportTrigramSearchOrTypo() {
+            CategoryEntity tvCat = createCategory("Видео", "video");
+
             ProductEntity product = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(tvCat.getId())
                     .title("Телевизор диагональ 65 дюймов")
-                    .category("video")
                     .description("Разрешение 4K HDR")
                     .price(75000L)
                     .status(ProductStatus.ACTIVE)
@@ -367,16 +409,65 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
     }
 
     @Nested
-    @DisplayName("Негативные сценарии (проверка CHECK и NOT NULL констрейнтов)")
+    @DisplayName("Негативные сценарии (проверка CHECK, FK и NOT NULL констрейнтов)")
     class NegativeScenarios {
+
+        @Test
+        @DisplayName("Ошибка внешнего ключа при указании несуществующей категории category_id")
+        void shouldFailWhenCategoryIdDoesNotExist() {
+            ProductEntity invalidCategory = ProductEntity.builder()
+                    .sellerId(UUID.randomUUID())
+                    .categoryId(UUID.randomUUID())
+                    .title("Товар с несуществующей категорией")
+                    .price(1000L)
+                    .status(ProductStatus.ACTIVE)
+                    .build();
+
+            assertThrows(DataIntegrityViolationException.class, () -> productRepository.saveAndFlush(invalidCategory));
+        }
+
+        @Test
+        @DisplayName("Защита целостности: запрет удаления категории, если к ней привязаны товары (ON DELETE RESTRICT)")
+        void shouldPreventCategoryDeletionWhenProductsExist() {
+            CategoryEntity protectedCategory = createCategory("Защищенная категория", "protected-cat");
+
+            ProductEntity product = ProductEntity.builder()
+                    .sellerId(UUID.randomUUID())
+                    .categoryId(protectedCategory.getId())
+                    .title("Привязанный товар")
+                    .price(1000L)
+                    .status(ProductStatus.ACTIVE)
+                    .build();
+
+            productRepository.saveAndFlush(product);
+
+            assertThrows(DataIntegrityViolationException.class, () -> {
+                categoryRepository.deleteById(protectedCategory.getId());
+                categoryRepository.flush();
+            });
+        }
+
+        @Test
+        @DisplayName("Ошибка при отсутствии category_id (not null constraint)")
+        void shouldFailWhenCategoryIdIsNull() {
+            ProductEntity noCategory = ProductEntity.builder()
+                    .sellerId(UUID.randomUUID())
+                    .categoryId(null)
+                    .title("Товар без категории")
+                    .price(100L)
+                    .status(ProductStatus.ACTIVE)
+                    .build();
+
+            assertThrows(DataIntegrityViolationException.class, () -> productRepository.saveAndFlush(noCategory));
+        }
 
         @Test
         @DisplayName("Ошибка при неположительной цене (price <= 0)")
         void shouldFailWhenPriceIsNotPositive() {
             ProductEntity zeroPrice = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(defaultCategory.getId())
                     .title("Бесплатный товар")
-                    .category("general")
                     .price(0L)
                     .status(ProductStatus.ACTIVE)
                     .build();
@@ -385,8 +476,8 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
 
             ProductEntity negativePrice = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(defaultCategory.getId())
                     .title("Отрицательная цена")
-                    .category("general")
                     .price(-100L)
                     .status(ProductStatus.ACTIVE)
                     .build();
@@ -399,8 +490,8 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
         void shouldFailWhenTitleIsBlank() {
             ProductEntity emptyTitle = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(defaultCategory.getId())
                     .title("")
-                    .category("general")
                     .price(100L)
                     .status(ProductStatus.ACTIVE)
                     .build();
@@ -409,8 +500,8 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
 
             ProductEntity spacesTitle = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(defaultCategory.getId())
                     .title("   ")
-                    .category("general")
                     .price(100L)
                     .status(ProductStatus.ACTIVE)
                     .build();
@@ -419,26 +510,12 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
         }
 
         @Test
-        @DisplayName("Ошибка при пустой категории")
-        void shouldFailWhenCategoryIsBlank() {
-            ProductEntity emptyCategory = ProductEntity.builder()
-                    .sellerId(UUID.randomUUID())
-                    .title("Валидный заголовок")
-                    .category("   ")
-                    .price(100L)
-                    .status(ProductStatus.ACTIVE)
-                    .build();
-
-            assertThrows(DataIntegrityViolationException.class, () -> productRepository.saveAndFlush(emptyCategory));
-        }
-
-        @Test
         @DisplayName("Ошибка при отсутствии seller_id (not null constraint)")
         void shouldFailWhenSellerIdIsNull() {
             ProductEntity noSeller = ProductEntity.builder()
                     .sellerId(null)
+                    .categoryId(defaultCategory.getId())
                     .title("Товар без продавца")
-                    .category("general")
                     .price(100L)
                     .status(ProductStatus.ACTIVE)
                     .build();
@@ -453,8 +530,8 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
             UUID mediaId = UUID.randomUUID();
             ProductEntity product = ProductEntity.builder()
                     .sellerId(UUID.randomUUID())
+                    .categoryId(defaultCategory.getId())
                     .title("Товар с дубликатом медиа")
-                    .category("general")
                     .price(100L)
                     .status(ProductStatus.ACTIVE)
                     .build();

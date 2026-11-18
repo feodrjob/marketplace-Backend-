@@ -4,12 +4,31 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 -- Создание логической схемы catalog (архитектурный паттерн Database-per-Service)
 CREATE SCHEMA IF NOT EXISTS catalog;
 
+-- Таблица категорий товаров (иерархическая структура, табы витрины)
+CREATE TABLE IF NOT EXISTS catalog.categories (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    parent_id  UUID REFERENCES catalog.categories (id) ON DELETE CASCADE,
+    name       VARCHAR(100) NOT NULL,
+    slug       VARCHAR(100) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active  BOOLEAN NOT NULL DEFAULT true,
+    CONSTRAINT uq_categories_slug UNIQUE (slug),
+    CONSTRAINT chk_categories_name_not_blank CHECK (length(trim(name)) > 0),
+    CONSTRAINT chk_categories_slug_not_blank CHECK (length(trim(slug)) > 0)
+);
+
+-- Индексы для категорий
+CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON catalog.categories (parent_id);
+CREATE INDEX IF NOT EXISTS idx_categories_slug ON catalog.categories (slug);
+CREATE INDEX IF NOT EXISTS idx_categories_sort_order ON catalog.categories (sort_order);
+CREATE INDEX IF NOT EXISTS idx_categories_is_active ON catalog.categories (is_active);
+
 -- Таблица товаров
 CREATE TABLE IF NOT EXISTS catalog.products (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     seller_id     UUID NOT NULL,
+    category_id   UUID NOT NULL REFERENCES catalog.categories (id) ON DELETE RESTRICT,
     title         VARCHAR(255) NOT NULL,
-    category      VARCHAR(255) NOT NULL,
     description   TEXT,
     price         BIGINT NOT NULL,
     status        VARCHAR(50) NOT NULL,
@@ -18,8 +37,7 @@ CREATE TABLE IF NOT EXISTS catalog.products (
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_products_price_positive CHECK (price > 0),
     CONSTRAINT chk_products_status CHECK (status IN ('ACTIVE', 'HIDDEN', 'ARCHIVED')),
-    CONSTRAINT chk_products_title_not_blank CHECK (length(trim(title)) > 0),
-    CONSTRAINT chk_products_category_not_blank CHECK (length(trim(category)) > 0)
+    CONSTRAINT chk_products_title_not_blank CHECK (length(trim(title)) > 0)
 );
 
 -- Таблица изображений товаров (композитный PK product_id + media_id, порядок показа sort_order)
@@ -42,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON catalog.products USING gin
 
 -- Индексы для фильтрации, сортировки и пагинации каталога
 CREATE INDEX IF NOT EXISTS idx_products_status ON catalog.products (status);
-CREATE INDEX IF NOT EXISTS idx_products_category ON catalog.products (category);
+CREATE INDEX IF NOT EXISTS idx_products_category_id ON catalog.products (category_id);
 CREATE INDEX IF NOT EXISTS idx_products_seller_id ON catalog.products (seller_id);
 CREATE INDEX IF NOT EXISTS idx_products_price ON catalog.products (price);
 CREATE INDEX IF NOT EXISTS idx_products_created_at ON catalog.products (created_at DESC);
