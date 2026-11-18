@@ -1,0 +1,23 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: catalog-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/marketplace?currentSchema=catalog,public}
+    username: ${SPRING_DATASOURCE_USERNAME:marketplace}
+    password: ${SPRING_DATASOURCE_PASSWORD:marketplace}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: catalog
+  flyway:
+    enabled: true
+    schemas:
+      - catalog
+    default-schema: catalog
+    locations:
+      - classpath:db/migration
