@@ -65,7 +65,8 @@ jobs:
             printf '%q ' ssh -T -p "$DEPLOY_PORT" -i "$RUNNER_TEMP/deploy-ssh/key" \
               -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
               -o "UserKnownHostsFile=$RUNNER_TEMP/deploy-ssh/known_hosts" \
-              -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+              -o ConnectionAttempts=11 -o ConnectTimeout=15 \
+              -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
               -- "$DEPLOY_USER@$DEPLOY_HOST"
             printf '"$@"\n'
           } > "$RUNNER_TEMP/deploy-ssh/connect"
