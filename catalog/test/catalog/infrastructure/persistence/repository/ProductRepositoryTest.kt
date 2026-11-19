@@ -418,6 +418,240 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
             )
             assertTrue(result.content.any { it.title.contains("Телевизор") })
         }
+
+        @Test
+        @DisplayName("Корнер кейс: FTS триггер корректно индексирует товар с null-описанием")
+        fun shouldHandleNullDescriptionInFtsTriggerAndFindProduct() {
+            val category = createCategory("Гаджеты", "gadgets")
+            val product = ProductEntity(
+                sellerId = UUID.randomUUID(),
+                categoryId = category.id!!,
+                title = "Умный браслет Фитнес",
+                description = null,
+                price = 3000L,
+                status = ProductStatus.ACTIVE
+            )
+
+            productRepository.saveAndFlush(product)
+
+            val searchResult = productRepository.searchActiveByText("браслет", PageRequest.of(0, 10))
+            assertTrue(searchResult.content.any { it.title == "Умный браслет Фитнес" })
+        }
+
+        @Test
+        @DisplayName("Корнер кейс: FTS триггер пересчитывает search_vector при обновлении title")
+        fun shouldUpdateSearchVectorWhenTitleOrDescriptionUpdated() {
+            val category = createCategory("Мобильные устройства", "mobile")
+            val product = ProductEntity(
+                sellerId = UUID.randomUUID(),
+                categoryId = category.id!!,
+                title = "Смартфон начального уровня",
+                description = "Бюджетный аппарат",
+                price = 10000L,
+                status = ProductStatus.ACTIVE
+            )
+
+            val saved = productRepository.saveAndFlush(product)
+            assertTrue(productRepository.searchActiveByText("смартфон", PageRequest.of(0, 10)).content.any { it.id == saved.id })
+
+            saved.title = "Планшет начального уровня"
+            productRepository.saveAndFlush(saved)
+
+            // После обновления title search_vector должен найти "планшет" и не находить "смартфон"
+            val tabletResult = productRepository.searchActiveByText("планшет", PageRequest.of(0, 10))
+            assertTrue(tabletResult.content.any { it.id == saved.id })
+
+            val phoneResult = productRepository.searchActiveByText("смартфон", PageRequest.of(0, 10))
+            assertFalse(phoneResult.content.any { it.id == saved.id })
+        }
+
+        @Test
+        @DisplayName("Корнер кейс: поиск устойчив к регистру и поддерживает русскую морфологию (склонения)")
+        fun shouldMatchRussianMorphologyAndCaseInsensitive() {
+            val category = createCategory("Клининг", "cleaning")
+            val product = ProductEntity(
+                sellerId = UUID.randomUUID(),
+                categoryId = category.id!!,
+                title = "Моющий беспроводной пылесос",
+                description = "Уборка шерсти домашних животных без усилий",
+                price = 18000L,
+                status = ProductStatus.ACTIVE
+            )
+
+            productRepository.saveAndFlush(product)
+
+            // Поиск в верхнем регистре
+            val upperCaseResult = productRepository.searchActiveByText("ПЫЛЕСОС", PageRequest.of(0, 10))
+            assertTrue(upperCaseResult.content.any { it.title.contains("пылесос") })
+
+            // Склонение "пылесосом" (творительный падеж)
+            val inflectedResult = productRepository.searchActiveByText("пылесосом", PageRequest.of(0, 10))
+            assertTrue(inflectedResult.content.any { it.title.contains("пылесос") })
+
+            // Множественное число в описании "животное" (в описании "животных")
+            val descMorphResult = productRepository.searchActiveByText("животное", PageRequest.of(0, 10))
+            assertTrue(descMorphResult.content.any { it.title.contains("пылесос") })
+        }
+
+        @Test
+        @DisplayName("Инвариант витрины: товар ACTIVE не виден в поиске и витрине, если его категория неактивна")
+        fun shouldHideProductWhenCategoryIsInactive() {
+            val inactiveCategory = categoryRepository.save(
+                CategoryEntity(
+                    name = "Сезонная категория",
+                    slug = "seasonal-" + UUID.randomUUID(),
+                    sortOrder = 99,
+                    isActive = false
+                )
+            )
+
+            val product = ProductEntity(
+                sellerId = UUID.randomUUID(),
+                categoryId = inactiveCategory.id!!,
+                title = "Снегоуборщик бензиновый",
+                description = "Мощная зимняя техника",
+                price = 45000L,
+                status = ProductStatus.ACTIVE
+            )
+
+            val saved = productRepository.saveAndFlush(product)
+
+            // В БД товар существует и ACTIVE
+            assertTrue(productRepository.existsByIdAndStatus(saved.id!!, ProductStatus.ACTIVE))
+
+            // Но для витрины с проверкой category.is_active = true он недоступен
+            assertFalse(productRepository.existsByIdAndStatusAndCategoryIsActiveTrue(saved.id!!, ProductStatus.ACTIVE))
+            assertTrue(productRepository.findByIdAndStatusAndCategoryIsActiveTrue(saved.id!!, ProductStatus.ACTIVE).isEmpty)
+
+            val searchResult = productRepository.searchActiveByText("снегоуборщик", PageRequest.of(0, 10))
+            assertFalse(searchResult.content.any { it.id == saved.id })
+
+            val storefrontPage = productRepository.findAllByStatusAndCategoryIsActiveTrue(ProductStatus.ACTIVE, PageRequest.of(0, 10))
+            assertFalse(storefrontPage.content.any { it.id == saved.id })
+        }
+
+        @Test
+        @DisplayName("US-3.1 AC 4: удаление одного товара не удаляет общий медиафайл, используемый другим товаром")
+        fun shouldPreserveSharedMediaWhenOneProductDeleted() {
+            val sharedMediaId = UUID.randomUUID()
+            val category = createCategory("Общая категория медиа", "shared-media")
+
+            val p1 = ProductEntity(
+                sellerId = UUID.randomUUID(),
+                categoryId = category.id!!,
+                title = "Товар 1 с общим фото",
+                price = 1000L,
+                status = ProductStatus.ACTIVE
+            )
+            p1.addImage(sharedMediaId, 1)
+            val savedP1 = productRepository.saveAndFlush(p1)
+
+            val p2 = ProductEntity(
+                sellerId = UUID.randomUUID(),
+                categoryId = category.id!!,
+                title = "Товар 2 с общим фото",
+                price = 2000L,
+                status = ProductStatus.ACTIVE
+            )
+            p2.addImage(sharedMediaId, 1)
+            val savedP2 = productRepository.saveAndFlush(p2)
+
+            assertEquals(2L, productImageRepository.countByIdMediaId(sharedMediaId))
+            assertTrue(productImageRepository.existsByIdMediaId(sharedMediaId))
+
+            // Удаляем первый товар
+            productRepository.delete(savedP1)
+            productRepository.flush()
+
+            // Проверяем, что первый товар удален, но второй остался и ссылка на медиа жива
+            assertFalse(productRepository.existsById(savedP1.id!!))
+            assertTrue(productRepository.existsById(savedP2.id!!))
+            assertEquals(1L, productImageRepository.countByIdMediaId(sharedMediaId))
+            assertTrue(productImageRepository.existsByIdMediaId(sharedMediaId))
+        }
+
+        @Test
+        @DisplayName("Orphan removal: метод clearImages() удаляет все связанные изображения")
+        @Transactional
+        fun shouldClearAllImagesViaClearImagesMethod() {
+            val mediaId1 = UUID.randomUUID()
+            val mediaId2 = UUID.randomUUID()
+            val category = createCategory("Очистка фото", "clear-images")
+
+            val product = ProductEntity(
+                sellerId = UUID.randomUUID(),
+                categoryId = category.id!!,
+                title = "Товар для полной очистки фото",
+                price = 5000L,
+                status = ProductStatus.ACTIVE
+            )
+            product.addImage(mediaId1, 1)
+            product.addImage(mediaId2, 2)
+            val saved = productRepository.saveAndFlush(product)
+
+            assertEquals(2, saved.images.size)
+            assertTrue(productImageRepository.existsByIdMediaId(mediaId1))
+            assertTrue(productImageRepository.existsByIdMediaId(mediaId2))
+
+            saved.clearImages()
+            productRepository.saveAndFlush(saved)
+
+            val refreshed = productRepository.findById(saved.id!!).orElseThrow()
+            assertTrue(refreshed.images.isEmpty())
+            assertFalse(productImageRepository.existsByIdMediaId(mediaId1))
+            assertFalse(productImageRepository.existsByIdMediaId(mediaId2))
+        }
+
+        @Test
+        @DisplayName("Межсервисный API 4.3 (Commerce checkout): пакетный поиск findAllByIdIn и findAllByIdInAndStatus")
+        fun shouldSupportBatchQueriesForCheckoutValidation() {
+            val category = createCategory("Пакетная валидация", "batch-val")
+
+            val pActive1 = productRepository.save(
+                ProductEntity(
+                    sellerId = UUID.randomUUID(),
+                    categoryId = category.id!!,
+                    title = "Активный товар 1",
+                    price = 100L,
+                    status = ProductStatus.ACTIVE
+                )
+            )
+
+            val pActive2 = productRepository.save(
+                ProductEntity(
+                    sellerId = UUID.randomUUID(),
+                    categoryId = category.id!!,
+                    title = "Активный товар 2",
+                    price = 200L,
+                    status = ProductStatus.ACTIVE
+                )
+            )
+
+            val pHidden = productRepository.save(
+                ProductEntity(
+                    sellerId = UUID.randomUUID(),
+                    categoryId = category.id!!,
+                    title = "Скрытый товар",
+                    price = 300L,
+                    status = ProductStatus.HIDDEN
+                )
+            )
+
+            val nonExistentId = UUID.randomUUID()
+            val queryIds = listOf(pActive1.id!!, pActive2.id!!, pHidden.id!!, nonExistentId)
+
+            val allFound = productRepository.findAllByIdIn(queryIds)
+            assertEquals(3, allFound.size)
+            assertTrue(allFound.any { it.id == pActive1.id })
+            assertTrue(allFound.any { it.id == pActive2.id })
+            assertTrue(allFound.any { it.id == pHidden.id })
+
+            val activeFound = productRepository.findAllByIdInAndStatus(queryIds, ProductStatus.ACTIVE)
+            assertEquals(2, activeFound.size)
+            assertTrue(activeFound.any { it.id == pActive1.id })
+            assertTrue(activeFound.any { it.id == pActive2.id })
+            assertFalse(activeFound.any { it.id == pHidden.id })
+        }
     }
 
     @Nested

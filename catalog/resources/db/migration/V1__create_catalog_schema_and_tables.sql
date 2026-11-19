@@ -67,3 +67,5 @@ CREATE INDEX IF NOT EXISTS idx_products_created_at ON catalog.products (created_
 
 -- Индекс для получения изображений товара с учетом порядка сортировки
 CREATE INDEX IF NOT EXISTS idx_product_images_sort_order ON catalog.product_images (product_id, sort_order);
+-- Индекс для проверки использования media_id другими товарами (US-3.1 AC 4)
+CREATE INDEX IF NOT EXISTS idx_product_images_media_id ON catalog.product_images (media_id);

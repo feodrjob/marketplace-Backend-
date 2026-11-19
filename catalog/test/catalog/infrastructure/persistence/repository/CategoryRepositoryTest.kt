@@ -1,6 +1,8 @@
 package catalog.infrastructure.persistence.repository
 
+import catalog.common.enums.ProductStatus
 import catalog.infrastructure.persistence.entity.CategoryEntity
+import catalog.infrastructure.persistence.entity.ProductEntity
 import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
@@ -15,6 +17,9 @@ class CategoryRepositoryTest : DatabaseUnitTestConfiguration() {
 
     @Autowired
     private lateinit var categoryRepository: CategoryRepository
+
+    @Autowired
+    private lateinit var productRepository: ProductRepository
 
     @Autowired
     private lateinit var entityManager: EntityManager
@@ -162,6 +167,45 @@ class CategoryRepositoryTest : DatabaseUnitTestConfiguration() {
             assertFalse(categoryRepository.existsById(parent.id!!))
             assertFalse(categoryRepository.existsById(child.id!!))
         }
+
+        @Test
+        @DisplayName("Каскадное удаление трехуровневой иерархии (Дедушка -> Родитель -> Потомок)")
+        fun shouldCascadeDeleteDeepHierarchyWhenGrandparentDeleted() {
+            val grandparent = categoryRepository.save(
+                CategoryEntity(
+                    name = "Электроника глубокая",
+                    slug = "deep-elec-" + UUID.randomUUID(),
+                    sortOrder = 1,
+                    isActive = true
+                )
+            )
+
+            val parent = categoryRepository.save(
+                CategoryEntity(
+                    parentId = grandparent.id,
+                    name = "Компьютеры",
+                    slug = "computers-" + UUID.randomUUID(),
+                    sortOrder = 1,
+                    isActive = true
+                )
+            )
+
+            val child = categoryRepository.save(
+                CategoryEntity(
+                    parentId = parent.id,
+                    name = "Ноутбуки",
+                    slug = "laptops-" + UUID.randomUUID(),
+                    sortOrder = 1,
+                    isActive = true
+                )
+            )
+
+            categoryRepository.deleteById(grandparent.id!!)
+
+            assertFalse(categoryRepository.existsById(grandparent.id!!))
+            assertFalse(categoryRepository.existsById(parent.id!!))
+            assertFalse(categoryRepository.existsById(child.id!!))
+        }
     }
 
     @Nested
@@ -237,6 +281,35 @@ class CategoryRepositoryTest : DatabaseUnitTestConfiguration() {
 
             assertThrows(DataIntegrityViolationException::class.java) {
                 categoryRepository.saveAndFlush(orphan)
+            }
+        }
+
+        @Test
+        @DisplayName("Ошибка внешнего ключа (RESTRICT) при попытке удалить категорию, к которой привязаны товары")
+        fun shouldFailToDeleteCategoryWhenReferencedByProducts() {
+            val category = categoryRepository.save(
+                CategoryEntity(
+                    name = "Категория с товаром",
+                    slug = "cat-with-prod-" + UUID.randomUUID(),
+                    sortOrder = 1,
+                    isActive = true
+                )
+            )
+
+            productRepository.save(
+                ProductEntity(
+                    sellerId = UUID.randomUUID(),
+                    categoryId = category.id!!,
+                    title = "Неотделимый товар",
+                    description = "Товар привязан к категории",
+                    price = 1000L,
+                    status = ProductStatus.ACTIVE
+                )
+            )
+
+            assertThrows(DataIntegrityViolationException::class.java) {
+                categoryRepository.deleteById(category.id!!)
+                categoryRepository.flush()
             }
         }
     }
