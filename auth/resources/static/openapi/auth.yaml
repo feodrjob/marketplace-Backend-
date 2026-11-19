@@ -4,8 +4,8 @@ info:
   version: 1.0.0
   description: |
     Целевой контракт MVP для разделов 2.1 и 2.2 REST-спецификации.
-    HTTP-слой Auth ещё предстоит реализовать. Состояние кода и открытые вопросы
-    описаны на странице «Контракт Auth Service» в документации проекта.
+    HTTP-слой реализован. Публичные данные магазина доступны Catalog
+    через GET /api/v1/sellers/{sellerId}/shop без JWT.
 
     Один аккаунт имеет одну роль. Публичная регистрация создаёт аккаунт BUYER
     или SELLER. Роль ADMIN назначается вне публичного API.
@@ -26,6 +26,8 @@ tags:
     description: Регистрация и управление сессией
   - name: Users
     description: Собственный профиль аккаунта
+  - name: Sellers
+    description: Публичные данные магазинов
 
 paths:
   /api/v1/auth/register/buyer:
@@ -225,6 +227,43 @@ paths:
               $ref: '#/components/headers/ClearRefreshCookie'
         '401':
           $ref: '#/components/responses/AccessUnauthorized'
+
+  /api/v1/sellers/{sellerId}/shop:
+    get:
+      tags: [Sellers]
+      operationId: getSellerShop
+      summary: Получить публичные данные магазина
+      description: |
+        Публичная операция для витрины Catalog. sellerId — UUID аккаунта
+        продавца из auth.users, совпадающий с sub его JWT.
+        Возвращает только sellerId, companyName и description.
+      security: []
+      parameters:
+        - name: sellerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Публичный магазин найден.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SellerShopResponse'
+        '400':
+          description: Некорректный UUID продавца.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Аккаунт не найден или не имеет роли SELLER.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 
   /api/v1/users/me:
     get:
@@ -426,6 +465,20 @@ components:
           $ref: '#/components/schemas/AccessToken'
         user:
           $ref: '#/components/schemas/UserProfile'
+    SellerShopResponse:
+      type: object
+      additionalProperties: false
+      required: [sellerId, companyName, description]
+      properties:
+        sellerId:
+          type: string
+          format: uuid
+          description: Идентификатор аккаунта продавца, не отдельного профиля.
+        companyName:
+          $ref: '#/components/schemas/CompanyName'
+        description:
+          type: [string, 'null']
+          description: Публичное описание магазина.
     UserProfile:
       type: object
       additionalProperties: false

@@ -3,6 +3,7 @@ package catalog.web.exception
 import catalog.exception.CatalogException
 import catalog.exception.CategoryNotFoundException
 import catalog.exception.ProductNotFoundException
+import catalog.exception.SellerShopUnavailableException
 import catalog.web.dto.error.ProblemResponse
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
@@ -44,6 +45,19 @@ class GlobalExceptionHandler {
         return problem(
             status = HttpStatus.BAD_REQUEST,
             detail = "Некорректное значение параметра '${exception.name}'",
+            request = request,
+        )
+    }
+
+    // Возвращаем 503 при недоступности Auth.
+    @ExceptionHandler(SellerShopUnavailableException::class)
+    fun handleShopUnavailable(
+        exception: SellerShopUnavailableException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ProblemResponse> {
+        return problem(
+            status = HttpStatus.SERVICE_UNAVAILABLE,
+            detail = exception.message ?: "Данные магазина временно недоступны",
             request = request,
         )
     }

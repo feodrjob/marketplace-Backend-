@@ -13,7 +13,7 @@ import auth.web.dto.auth.RegisterSellerRequest;
 import auth.web.dto.user.UpdateProfileRequest;
 import auth.web.dto.user.UserProfileResponse;
 import org.springframework.stereotype.Component;
-
+import auth.web.dto.user.SellerShopResponse;
 import java.util.Objects;
 
 @Component
@@ -94,5 +94,15 @@ public class AuthDtoMapper {
                 .createdAt(profile.getCreatedAt())
                 .updatedAt(profile.getUpdatedAt())
                 .build();
+    }
+
+    public SellerShopResponse toSellerShopResponse(UserProfile profile) {
+        Objects.requireNonNull(profile, "profile");
+
+        return new SellerShopResponse(
+                profile.getId(),
+                profile.getCompanyName(),
+                profile.getDescription()
+        );
     }
 }
