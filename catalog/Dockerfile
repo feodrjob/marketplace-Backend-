@@ -4,7 +4,7 @@ WORKDIR /workspace
 
 COPY --chmod=0755 gradlew ./
 COPY gradle/ gradle/
-COPY settings.gradle build.gradle ./
+COPY settings.gradle build.gradle gradle.properties ./
 COPY catalog/ catalog/
 COPY auth/build.gradle auth/build.gradle
 

@@ -21,6 +21,28 @@ services:
       start_period: 30s
       retries: 12
 
+  catalog:
+    build:
+      context: .
+      dockerfile: catalog/Dockerfile
+      network: host
+    restart: unless-stopped
+    ports:
+      - "${CATALOG_BIND:-127.0.0.1}:${CATALOG_PORT:-8083}:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/marketplace?currentSchema=catalog,public
+      SPRING_DATASOURCE_USERNAME: marketplace
+      SPRING_DATASOURCE_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "true > /dev/tcp/127.0.0.1/8083"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 12
+
   db:
     image: postgres:17-alpine
     restart: unless-stopped

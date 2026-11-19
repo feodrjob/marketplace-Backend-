@@ -103,7 +103,11 @@ paths:
         '400':
           $ref: '#/components/responses/MalformedJson'
         '409':
-          $ref: '#/components/responses/EmailConflict'
+          description: Email или ИНН уже используется.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '422':
           description: Ошибки полей, включая ИНН неверного формата.
           content:

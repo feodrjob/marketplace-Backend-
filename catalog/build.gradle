@@ -5,6 +5,8 @@ plugins {
     id 'io.spring.dependency-management'
 }
 
+ext['kotlin.version'] = '2.1.0'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -31,23 +33,22 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test-junit5'
     testImplementation 'org.testcontainers:postgresql:1.20.4'
     testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 springBoot {
-    mainClass = 'catalog.CatalogApplication'
+    mainClass = 'catalog.CatalogApplicationKt'
 }
 
 sourceSets {
     main {
-        java.setSrcDirs([])
         kotlin.setSrcDirs(['src'])
         resources.setSrcDirs(['resources'])
     }
     test {
-        java.setSrcDirs([])
         kotlin.setSrcDirs(['test'])
     }
 }
