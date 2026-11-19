@@ -5,6 +5,15 @@ import catalog.domain.repository.ProductRepository
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Память для тестов витрины.
+ *
+ * <p>Хранит товары всех статусов. Отбор для гостя делает сервис.</p>
+ *
+ * @since 0.0.1
+ * @author lllnightlll
+ * @see ProductRepository
+ */
 class InMemoryProductRepository : ProductRepository {
     private val products = ConcurrentHashMap<UUID, ProductModel>()
 

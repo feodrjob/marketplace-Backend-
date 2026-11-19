@@ -5,6 +5,15 @@ import catalog.domain.repository.CategoryRepository
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Память для тестов витрины.
+ *
+ * <p>Хранит категории всех состояний, в том числе неактивные.</p>
+ *
+ * @since 0.0.1
+ * @author lllnightlll
+ * @see CategoryRepository
+ */
 class InMemoryCategoryRepository : CategoryRepository {
     private val categories = ConcurrentHashMap<UUID, CategoryModel>()
 

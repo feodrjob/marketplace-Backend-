@@ -2,6 +2,20 @@ package catalog.domain.model
 
 import java.util.UUID
 
+/**
+ * Магазин продавца для карточки товара.
+ *
+ * <p>
+ * Название и описание читаются из Auth через [catalog.domain.repository.SellerShopLookup].
+ * </p>
+ *
+ * @param sellerId идентификатор аккаунта продавца
+ * @param companyName название магазина, не длиннее [COMPANY_NAME_MAX_LENGTH]
+ * @param description описание магазина, может отсутствовать
+ * @since 0.0.1
+ * @author lllnightlll
+ * @see catalog.domain.model.PublicProductCard
+ */
 class SellerShop(
     val sellerId: UUID,
     companyName: String?,

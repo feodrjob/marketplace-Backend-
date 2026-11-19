@@ -5,6 +5,15 @@ import catalog.domain.repository.SellerShopLookup
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * Память вместо чтения магазина из Auth.
+ *
+ * <p>Если продавца нет в карте, карточка открывается без названия магазина.</p>
+ *
+ * @since 0.0.1
+ * @author lllnightlll
+ * @see SellerShopLookup
+ */
 class InMemorySellerShopLookup : SellerShopLookup {
     private val shops = ConcurrentHashMap<UUID, SellerShop>()
 

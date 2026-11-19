@@ -13,7 +13,23 @@ import catalog.exception.CategoryNotFoundException
 import catalog.exception.ProductNotFoundException
 import java.util.UUID
 
-// Публичная витрина US-2.1: категории, список ACTIVE-товаров и карточка.
+/**
+ * Публичная витрина.
+ *
+ * <p>
+ * Отдаёт категории, список товаров [catalog.common.enums.ProductStatus.ACTIVE]
+ * и карточку. Скрытый и архивный товар для гостя неотличим от отсутствующего.
+ * </p>
+ *
+ * @param categories хранилище категорий
+ * @param products хранилище товаров
+ * @param sellerShops источник названия магазина
+ * @param visibility правило активной ветки категорий
+ * @param productCards сборщик карточки
+ * @since 0.0.1
+ * @author lllnightlll
+ * @see CategoryVisibility
+ */
 class PublicCatalogService(
     private val categories: CategoryRepository,
     private val products: ProductRepository,
@@ -21,6 +37,13 @@ class PublicCatalogService(
     private val visibility: CategoryVisibility = CategoryVisibility(),
     private val productCards: PublicProductMapper = PublicProductMapper(),
 ) {
+    /**
+     * Возвращает публичные категории.
+     *
+     * @param query дерево или плоский список и необязательный родитель
+     * @return узлы в порядке sortOrder, затем name
+     * @throws CategoryNotFoundException если родитель неизвестен или неактивен
+     */
     fun listCategories(query: CategoryListingQuery): List<CategoryNode> {
         val visible = visibility.visible(categories.findAll())
         val scope = scope(query.parentId, visible).sortedWith(CATEGORY_ORDER)
@@ -30,6 +53,13 @@ class PublicCatalogService(
         return tree(scope, query.parentId)
     }
 
+    /**
+     * Возвращает товары витрины.
+     *
+     * <p>Только ACTIVE в публичной категории. Более новые идут первыми.</p>
+     *
+     * @return карточки без скрытых и архивных товаров
+     */
     fun listProducts(): List<PublicProductCard> {
         val categoriesById = visibility.index(categories.findAll())
         return products.findAll()
@@ -38,6 +68,13 @@ class PublicCatalogService(
             .map { product -> toCard(product, categoriesById.getValue(product.categoryId)) }
     }
 
+    /**
+     * Открывает карточку товара.
+     *
+     * @param productId идентификатор товара
+     * @return карточка с категорией, фото и магазином
+     * @throws ProductNotFoundException если товара нет, он скрыт, архивный или лежит в неактивной категории
+     */
     fun getProduct(productId: UUID): PublicProductCard {
         val product = products.findById(productId) ?: throw ProductNotFoundException()
         val categoriesById = visibility.index(categories.findAll())

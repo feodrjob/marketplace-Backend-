@@ -3,6 +3,18 @@ package catalog.domain.service
 import catalog.domain.model.CategoryModel
 import java.util.UUID
 
+/**
+ * Правило видимости категории на витрине.
+ *
+ * <p>
+ * Категория публична, только если она сама и каждый предок активны.
+ * Обрыв цепочки или цикл прячет ветку целиком, чтобы витрина не падала на битой ссылке.
+ * </p>
+ *
+ * @since 0.0.1
+ * @author lllnightlll
+ * @see catalog.domain.model.CategoryModel
+ */
 class CategoryVisibility {
     fun visible(categories: Collection<CategoryModel>): List<CategoryModel> {
         val byId = index(categories)

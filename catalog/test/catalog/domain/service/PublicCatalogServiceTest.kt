@@ -23,6 +23,18 @@ import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * Проверки публичной витрины US-2.1 без базы.
+ *
+ * <p>
+ * Дерево категорий, плоский список, скрытые товары и карточка
+ * с ценой, фото и магазином.
+ * </p>
+ *
+ * @since 0.0.1
+ * @author lllnightlll
+ * @see PublicCatalogService
+ */
 class PublicCatalogServiceTest {
     private lateinit var categories: InMemoryCategoryRepository
     private lateinit var products: InMemoryProductRepository
