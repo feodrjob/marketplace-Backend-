@@ -4,6 +4,7 @@
 !gradle/**
 !settings.gradle
 !build.gradle
+!gradle.properties
 !auth/
 !auth/**
 !catalog/
