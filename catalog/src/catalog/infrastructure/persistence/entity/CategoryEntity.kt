@@ -45,7 +45,7 @@ class CategoryEntity(
             this.parentId = value?.id
         }
 
-    @OneToMany(mappedBy = "parent", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "parent", fetch = FetchType.LAZY)
     @OrderBy("sortOrder ASC, name ASC")
     var subcategories: MutableList<CategoryEntity> = mutableListOf()
 

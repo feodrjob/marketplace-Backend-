@@ -126,18 +126,9 @@ class CategoryRepositoryTest : DatabaseUnitTestConfiguration() {
             val rootCategories = categoryRepository
                 .findAllByParentIdIsNullAndIsActiveTrueOrderBySortOrderAscNameAsc()
 
-            assertTrue(rootCategories.any { it.id == catA.id })
-            assertTrue(rootCategories.any { it.id == catB.id })
-            assertFalse(rootCategories.any { it.id == catInactive.id })
-
-            // Проверяем, что в результирующем списке catA идет раньше catB по sortOrder
-            var indexA = -1
-            var indexB = -1
-            for (i in rootCategories.indices) {
-                if (rootCategories[i].id == catA.id) indexA = i
-                if (rootCategories[i].id == catB.id) indexB = i
-            }
-            assertTrue(indexA < indexB, "catA (sortOrder 10) должен предшествовать catB (sortOrder 20)")
+            assertEquals(2, rootCategories.size)
+            assertEquals(catA.id, rootCategories[0].id)
+            assertEquals(catB.id, rootCategories[1].id)
         }
 
         @Test

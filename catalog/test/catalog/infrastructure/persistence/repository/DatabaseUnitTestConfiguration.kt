@@ -2,13 +2,24 @@ package catalog.infrastructure.persistence.repository
 
 import catalog.TestApplication
 import org.flywaydb.core.Flyway
+import org.junit.jupiter.api.BeforeEach
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
 
 @SpringBootTest(classes = [TestApplication::class])
 abstract class DatabaseUnitTestConfiguration {
+
+    @Autowired
+    protected lateinit var jdbcTemplate: JdbcTemplate
+
+    @BeforeEach
+    fun cleanDatabase() {
+        jdbcTemplate.execute("TRUNCATE TABLE catalog.product_images, catalog.products, catalog.categories CASCADE;")
+    }
 
     companion object {
         @JvmStatic
@@ -39,6 +50,7 @@ abstract class DatabaseUnitTestConfiguration {
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("spring.jpa.hibernate.ddl-auto") { "validate" }
             registry.add("spring.jpa.properties.hibernate.default_schema") { "catalog" }
+            registry.add("spring.jpa.open-in-view") { "false" }
         }
     }
 }

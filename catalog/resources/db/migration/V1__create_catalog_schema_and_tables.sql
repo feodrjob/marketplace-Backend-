@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS catalog.categories (
 
 -- Индексы для категорий
 CREATE INDEX IF NOT EXISTS idx_categories_parent_id ON catalog.categories (parent_id);
-CREATE INDEX IF NOT EXISTS idx_categories_slug ON catalog.categories (slug);
 CREATE INDEX IF NOT EXISTS idx_categories_sort_order ON catalog.categories (sort_order);
 CREATE INDEX IF NOT EXISTS idx_categories_is_active ON catalog.categories (is_active);
 
@@ -54,6 +53,20 @@ CREATE TRIGGER trg_products_search_vector_update
     FOR EACH ROW
     EXECUTE FUNCTION tsvector_update_trigger(search_vector, 'pg_catalog.russian', title, description);
 
+-- Функция и триггер для автоматического обновления updated_at при любых SQL-изменениях
+CREATE OR REPLACE FUNCTION catalog.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_products_updated_at
+    BEFORE UPDATE ON catalog.products
+    FOR EACH ROW
+    EXECUTE FUNCTION catalog.update_updated_at_column();
+
 -- Индексы для полнотекстового и триграммного поиска
 CREATE INDEX IF NOT EXISTS idx_products_search_vector ON catalog.products USING gin (search_vector);
 CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON catalog.products USING gin (title gin_trgm_ops);
@@ -64,6 +77,10 @@ CREATE INDEX IF NOT EXISTS idx_products_category_id ON catalog.products (categor
 CREATE INDEX IF NOT EXISTS idx_products_seller_id ON catalog.products (seller_id);
 CREATE INDEX IF NOT EXISTS idx_products_price ON catalog.products (price);
 CREATE INDEX IF NOT EXISTS idx_products_created_at ON catalog.products (created_at DESC);
+
+-- Композитные индексы под типовые запросы витрины и личного кабинета продавца
+CREATE INDEX IF NOT EXISTS idx_products_status_category_id ON catalog.products (status, category_id);
+CREATE INDEX IF NOT EXISTS idx_products_seller_status ON catalog.products (seller_id, status);
 
 -- Индекс для получения изображений товара с учетом порядка сортировки
 CREATE INDEX IF NOT EXISTS idx_product_images_sort_order ON catalog.product_images (product_id, sort_order);

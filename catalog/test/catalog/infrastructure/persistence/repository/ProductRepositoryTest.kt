@@ -173,22 +173,21 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
 
             productRepository.saveAll(listOf(cheapActive, expensiveActive, hiddenProduct, archivedProduct))
 
-            val page = productRepository.findAllByStatus(
-                ProductStatus.ACTIVE,
+            val page = productRepository.findAll(
+                ProductSpecifications.hasStatus(ProductStatus.ACTIVE),
                 PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "price"))
             )
 
             val items = page.content
-            assertTrue(items.size >= 2)
+            assertEquals(2, items.size)
+            assertEquals("Чехол для телефона", items[0].title)
+            assertEquals("Смартфон Ultra", items[1].title)
             assertTrue(items.all { it.status == ProductStatus.ACTIVE })
-
-            for (i in 0 until items.size - 1) {
-                assertTrue(items[i].price <= items[i + 1].price)
-            }
+            assertTrue(items[0].price <= items[1].price)
         }
 
         @Test
-        @DisplayName("Фильтрация активных товаров по категории и нескольким категориям")
+        @DisplayName("Фильтрация активных товаров по спецификациям категории, слага и цены")
         fun shouldFilterActiveProductsByCategory() {
             val sellerId = UUID.randomUUID()
             val booksCat = createCategory("Книги", "books")
@@ -212,41 +211,42 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
 
             productRepository.saveAll(listOf(book, gadget))
 
-            val booksPage = productRepository.findAllByStatusAndCategoryId(
-                ProductStatus.ACTIVE,
-                booksCat.id!!,
+            val booksPage = productRepository.findAll(
+                ProductSpecifications.storefrontActiveProducts(categoryId = booksCat.id!!),
                 PageRequest.of(0, 10)
             )
-            assertTrue(booksPage.content.any { it.title == "Чистая архитектура" })
-            assertTrue(booksPage.content.none { it.title == "Умные часы" })
+            assertEquals(1L, booksPage.totalElements)
+            assertEquals("Чистая архитектура", booksPage.content[0].title)
 
-            val multipleCategoriesPage = productRepository.findAllByStatusAndCategoryIdIn(
-                ProductStatus.ACTIVE,
-                listOf(booksCat.id!!, gadgetsCat.id!!),
+            val multipleCategoriesPage = productRepository.findAll(
+                ProductSpecifications.storefrontActiveProducts(categoryIds = listOf(booksCat.id!!, gadgetsCat.id!!)),
                 PageRequest.of(0, 10)
             )
-            assertTrue(multipleCategoriesPage.content.any { it.title == "Чистая архитектура" })
-            assertTrue(multipleCategoriesPage.content.any { it.title == "Умные часы" })
+            assertEquals(2L, multipleCategoriesPage.totalElements)
 
-            val slugPage = productRepository.findAllByStatusAndCategorySlug(
-                ProductStatus.ACTIVE,
-                booksCat.slug,
+            val slugPage = productRepository.findAll(
+                ProductSpecifications.storefrontActiveProducts(categorySlug = booksCat.slug),
                 PageRequest.of(0, 10)
             )
-            assertTrue(slugPage.content.any { it.title == "Чистая архитектура" })
-            assertTrue(slugPage.content.none { it.title == "Умные часы" })
+            assertEquals(1L, slugPage.totalElements)
+            assertEquals("Чистая архитектура", slugPage.content[0].title)
 
-            val multipleSlugsPage = productRepository.findAllByStatusAndCategorySlugIn(
-                ProductStatus.ACTIVE,
-                listOf(booksCat.slug, gadgetsCat.slug),
+            val multipleSlugsPage = productRepository.findAll(
+                ProductSpecifications.storefrontActiveProducts(categorySlugs = listOf(booksCat.slug, gadgetsCat.slug)),
                 PageRequest.of(0, 10)
             )
-            assertTrue(multipleSlugsPage.content.any { it.title == "Чистая архитектура" })
-            assertTrue(multipleSlugsPage.content.any { it.title == "Умные часы" })
+            assertEquals(2L, multipleSlugsPage.totalElements)
+
+            val priceFilteredPage = productRepository.findAll(
+                ProductSpecifications.storefrontActiveProducts(minPrice = 1000L, maxPrice = 5000L),
+                PageRequest.of(0, 10)
+            )
+            assertEquals(1L, priceFilteredPage.totalElements)
+            assertEquals("Чистая архитектура", priceFilteredPage.content[0].title)
         }
 
         @Test
-        @DisplayName("Поиск товаров продавца с фильтрацией по статусу и категории")
+        @DisplayName("Поиск товаров продавца со спецификациями статуса и категории")
         fun shouldFindProductsBySellerIdAndFilterByStatus() {
             val sellerId = UUID.randomUUID()
             val cat = createCategory("Товары продавца", "seller-cat")
@@ -269,14 +269,19 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
 
             productRepository.saveAll(listOf(active, hidden))
 
-            val allSellerProducts = productRepository.findAllBySellerId(sellerId, PageRequest.of(0, 10))
+            val allSellerSpec = org.springframework.data.jpa.domain.Specification.where(ProductSpecifications.hasSellerId(sellerId))
+            val allSellerProducts = productRepository.findAll(allSellerSpec, PageRequest.of(0, 10))
             assertEquals(2L, allSellerProducts.totalElements)
 
-            val hiddenOnly = productRepository.findAllBySellerIdAndStatus(sellerId, ProductStatus.HIDDEN, PageRequest.of(0, 10))
+            val hiddenOnlySpec = org.springframework.data.jpa.domain.Specification.where(ProductSpecifications.hasSellerId(sellerId))
+                .and(ProductSpecifications.hasStatus(ProductStatus.HIDDEN))
+            val hiddenOnly = productRepository.findAll(hiddenOnlySpec, PageRequest.of(0, 10))
             assertEquals(1L, hiddenOnly.totalElements)
             assertEquals("Товар 2 продавца (скрытый)", hiddenOnly.content[0].title)
 
-            val sellerCategoryPage = productRepository.findAllBySellerIdAndCategoryId(sellerId, cat.id!!, PageRequest.of(0, 10))
+            val sellerCategorySpec = org.springframework.data.jpa.domain.Specification.where(ProductSpecifications.hasSellerId(sellerId))
+                .and(ProductSpecifications.hasCategoryId(cat.id!!))
+            val sellerCategoryPage = productRepository.findAll(sellerCategorySpec, PageRequest.of(0, 10))
             assertEquals(2L, sellerCategoryPage.totalElements)
         }
 
@@ -385,14 +390,16 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
             productRepository.saveAllAndFlush(listOf(p1, p2))
 
             val result = productRepository.searchActiveByText("наушники", PageRequest.of(0, 10))
-            assertTrue(result.content.any { it.title.contains("наушники") })
-            assertTrue(result.content.none { it.title.contains("чайник") })
+            assertEquals(1L, result.totalElements)
+            assertEquals("Флагманские беспроводные наушники", result.content[0].title)
 
             val descResult = productRepository.searchActiveByText("шумоподавление", PageRequest.of(0, 10))
-            assertTrue(descResult.content.any { it.title.contains("наушники") })
+            assertEquals(1L, descResult.totalElements)
+            assertEquals("Флагманские беспроводные наушники", descResult.content[0].title)
 
             val kettleResult = productRepository.searchActiveByText("кипячение", PageRequest.of(0, 10))
-            assertTrue(kettleResult.content.any { it.title.contains("чайник") })
+            assertEquals(1L, kettleResult.totalElements)
+            assertEquals("Электрический чайник из стали", kettleResult.content[0].title)
         }
 
         @Test
@@ -416,7 +423,8 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
                 0.2,
                 PageRequest.of(0, 10)
             )
-            assertTrue(result.content.any { it.title.contains("Телевизор") })
+            assertEquals(1L, result.totalElements)
+            assertEquals("Телевизор диагональ 65 дюймов", result.content[0].title)
         }
 
         @Test
@@ -435,7 +443,8 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
             productRepository.saveAndFlush(product)
 
             val searchResult = productRepository.searchActiveByText("браслет", PageRequest.of(0, 10))
-            assertTrue(searchResult.content.any { it.title == "Умный браслет Фитнес" })
+            assertEquals(1L, searchResult.totalElements)
+            assertEquals("Умный браслет Фитнес", searchResult.content[0].title)
         }
 
         @Test
@@ -452,17 +461,18 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
             )
 
             val saved = productRepository.saveAndFlush(product)
-            assertTrue(productRepository.searchActiveByText("смартфон", PageRequest.of(0, 10)).content.any { it.id == saved.id })
+            assertEquals(1L, productRepository.searchActiveByText("смартфон", PageRequest.of(0, 10)).totalElements)
 
             saved.title = "Планшет начального уровня"
             productRepository.saveAndFlush(saved)
 
             // После обновления title search_vector должен найти "планшет" и не находить "смартфон"
             val tabletResult = productRepository.searchActiveByText("планшет", PageRequest.of(0, 10))
-            assertTrue(tabletResult.content.any { it.id == saved.id })
+            assertEquals(1L, tabletResult.totalElements)
+            assertEquals(saved.id, tabletResult.content[0].id)
 
             val phoneResult = productRepository.searchActiveByText("смартфон", PageRequest.of(0, 10))
-            assertFalse(phoneResult.content.any { it.id == saved.id })
+            assertEquals(0L, phoneResult.totalElements)
         }
 
         @Test
@@ -482,15 +492,16 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
 
             // Поиск в верхнем регистре
             val upperCaseResult = productRepository.searchActiveByText("ПЫЛЕСОС", PageRequest.of(0, 10))
-            assertTrue(upperCaseResult.content.any { it.title.contains("пылесос") })
+            assertEquals(1L, upperCaseResult.totalElements)
+            assertEquals("Моющий беспроводной пылесос", upperCaseResult.content[0].title)
 
             // Склонение "пылесосом" (творительный падеж)
             val inflectedResult = productRepository.searchActiveByText("пылесосом", PageRequest.of(0, 10))
-            assertTrue(inflectedResult.content.any { it.title.contains("пылесос") })
+            assertEquals(1L, inflectedResult.totalElements)
 
             // Множественное число в описании "животное" (в описании "животных")
             val descMorphResult = productRepository.searchActiveByText("животное", PageRequest.of(0, 10))
-            assertTrue(descMorphResult.content.any { it.title.contains("пылесос") })
+            assertEquals(1L, descMorphResult.totalElements)
         }
 
         @Test
@@ -519,15 +530,42 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
             // В БД товар существует и ACTIVE
             assertTrue(productRepository.existsByIdAndStatus(saved.id!!, ProductStatus.ACTIVE))
 
-            // Но для витрины с проверкой category.is_active = true он недоступен
-            assertFalse(productRepository.existsByIdAndStatusAndCategoryIsActiveTrue(saved.id!!, ProductStatus.ACTIVE))
-            assertTrue(productRepository.findByIdAndStatusAndCategoryIsActiveTrue(saved.id!!, ProductStatus.ACTIVE).isEmpty)
+            // Но для витрины со спецификацией isCategoryActive() он недоступен
+            val storefrontSpec = ProductSpecifications.storefrontActiveProducts()
+            val storefrontPage = productRepository.findAll(storefrontSpec, PageRequest.of(0, 10))
+            assertEquals(0L, storefrontPage.totalElements)
 
+            // И в полнотекстовом поиске с JOIN categories не находится
             val searchResult = productRepository.searchActiveByText("снегоуборщик", PageRequest.of(0, 10))
-            assertFalse(searchResult.content.any { it.id == saved.id })
+            assertEquals(0L, searchResult.totalElements)
+        }
 
-            val storefrontPage = productRepository.findAllByStatusAndCategoryIsActiveTrue(ProductStatus.ACTIVE, PageRequest.of(0, 10))
-            assertFalse(storefrontPage.content.any { it.id == saved.id })
+        @Test
+        @DisplayName("Триггер БД trg_products_updated_at: автообновление updated_at при прямом SQL UPDATE")
+        fun shouldUpdateUpdatedAtTimestampOnSqlUpdate() {
+            val product = ProductEntity(
+                sellerId = UUID.randomUUID(),
+                categoryId = defaultCategory.id!!,
+                title = "Товар для теста триггера даты",
+                price = 1000L,
+                status = ProductStatus.ACTIVE
+            )
+            val saved = productRepository.saveAndFlush(product)
+            val initialUpdatedAt = saved.updatedAt
+
+            Thread.sleep(50)
+
+            // Прямой SQL UPDATE в обход Hibernate
+            jdbcTemplate.update(
+                "UPDATE catalog.products SET price = 2000 WHERE id = ?",
+                saved.id
+            )
+
+            entityManager.clear()
+            val updated = productRepository.findById(saved.id!!).orElseThrow()
+            assertEquals(2000L, updated.price)
+            assertNotNull(updated.updatedAt)
+            assertTrue(updated.updatedAt!!.isAfter(initialUpdatedAt), "updated_at должен быть обновлен триггером БД")
         }
 
         @Test
@@ -642,15 +680,11 @@ class ProductRepositoryTest : DatabaseUnitTestConfiguration() {
 
             val allFound = productRepository.findAllByIdIn(queryIds)
             assertEquals(3, allFound.size)
-            assertTrue(allFound.any { it.id == pActive1.id })
-            assertTrue(allFound.any { it.id == pActive2.id })
-            assertTrue(allFound.any { it.id == pHidden.id })
+            assertEquals(setOf(pActive1.id, pActive2.id, pHidden.id), allFound.map { it.id }.toSet())
 
             val activeFound = productRepository.findAllByIdInAndStatus(queryIds, ProductStatus.ACTIVE)
             assertEquals(2, activeFound.size)
-            assertTrue(activeFound.any { it.id == pActive1.id })
-            assertTrue(activeFound.any { it.id == pActive2.id })
-            assertFalse(activeFound.any { it.id == pHidden.id })
+            assertEquals(setOf(pActive1.id, pActive2.id), activeFound.map { it.id }.toSet())
         }
     }
 
