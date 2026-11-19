@@ -6,6 +6,8 @@
 !build.gradle
 !auth/
 !auth/**
+!catalog/
+!catalog/**
 
 **/.git
 **/.gradle

@@ -6,6 +6,7 @@ COPY --chmod=0755 gradlew ./
 COPY gradle/ gradle/
 COPY settings.gradle build.gradle ./
 COPY catalog/ catalog/
+COPY auth/build.gradle auth/build.gradle
 
 RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon :catalog:bootJar
 
