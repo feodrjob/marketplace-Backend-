@@ -1,5 +1,6 @@
 plugins {
-    id 'java'
+    id 'org.jetbrains.kotlin.jvm' version '2.3.21'
+    id 'org.jetbrains.kotlin.plugin.spring' version '2.3.21'
     id 'org.springframework.boot'
     id 'io.spring.dependency-management'
 }
@@ -10,15 +11,16 @@ java {
     }
 }
 
+kotlin {
+    jvmToolchain(21)
+}
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-    testCompileOnly 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
+    implementation 'org.jetbrains.kotlin:kotlin-reflect'
 
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
@@ -40,16 +42,21 @@ springBoot {
 
 sourceSets {
     main {
-        java.setSrcDirs(['src'])
+        java.setSrcDirs([])
+        kotlin.setSrcDirs(['src'])
         resources.setSrcDirs(['resources'])
     }
     test {
-        java.setSrcDirs(['test'])
+        java.setSrcDirs([])
+        kotlin.setSrcDirs(['test'])
     }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+        freeCompilerArgs.add('-Xjsr305=strict')
+    }
 }
 
 tasks.named('test') {
