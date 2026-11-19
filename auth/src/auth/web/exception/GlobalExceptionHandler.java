@@ -16,6 +16,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import auth.exception.InnAlreadyUsedException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -77,6 +78,19 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return problem(HttpStatus.UNAUTHORIZED, "Unauthorized", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(InnAlreadyUsedException.class)
+    public ResponseEntity <ProblemResponse> handleInnAlreadyUsed(
+            InnAlreadyUsedException exception,
+            HttpServletRequest request
+    ) {
+        return problem (
+                HttpStatus.CONFLICT,
+                "Conflict",
+                exception.getMessage(),
+                request
+        );
     }
 
     private ResponseEntity<ValidationProblemResponse> unprocessable(
