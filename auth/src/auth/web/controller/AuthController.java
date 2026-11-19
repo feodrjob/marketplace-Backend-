@@ -61,7 +61,7 @@ public class AuthController {
     @Operation(summary = "Зарегистрировать продавца", description = "Публичная операция. Создаёт активный аккаунт SELLER и открывает сессию.")
     @ApiResponse(responseCode = "201", description = "Аккаунт продавца создан и активен.")
     @ApiResponse(responseCode = "400", description = "Некорректный JSON.")
-    @ApiResponse(responseCode = "409", description = "Email уже занят.")
+    @ApiResponse(responseCode = "409", description = "Email или ИНН уже занят.")
     @ApiResponse(responseCode = "422", description = "Ошибки валидации полей.")
     public ResponseEntity<AuthResponse> registerSeller(
             @Valid @RequestBody RegisterSellerRequest request

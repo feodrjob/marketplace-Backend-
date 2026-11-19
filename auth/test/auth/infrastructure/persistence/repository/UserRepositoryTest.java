@@ -30,6 +30,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             String email = "buyer_" + UUID.randomUUID() + "@example.com";
 
             UserEntity buyer = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email(email)
                     .passwordHash("$2a$10$hashedPasswordValue")
                     .role(Role.BUYER)
@@ -64,6 +65,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             String inn = "770" + (System.currentTimeMillis() % 10000000L);
 
             UserEntity seller = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email(email)
                     .passwordHash("$2a$10$hashedPasswordValue")
                     .role(Role.SELLER)
@@ -95,6 +97,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             String email = "admin_" + UUID.randomUUID() + "@example.com";
 
             UserEntity admin = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email(email)
                     .passwordHash("$2a$10$hashedPasswordValue")
                     .role(Role.ADMIN)
@@ -116,6 +119,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
         @DisplayName("Каскадное удаление пользователя")
         void shouldCascadeDeleteUser() {
             UserEntity user = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email("cascade_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.BUYER)
@@ -148,6 +152,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             String duplicateEmail = "duplicate@example.com";
 
             UserEntity first = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email(duplicateEmail)
                     .passwordHash("hash1")
                     .role(Role.BUYER)
@@ -155,6 +160,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             userRepository.saveAndFlush(first);
 
             UserEntity second = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email(duplicateEmail)
                     .passwordHash("hash2")
                     .role(Role.BUYER)
@@ -171,6 +177,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             String duplicateInn = "7711998877";
 
             UserEntity s1 = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email("seller1_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.SELLER)
@@ -182,6 +189,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
             userRepository.saveAndFlush(s1);
 
             UserEntity s2 = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email("seller2_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.SELLER)
@@ -200,6 +208,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
         @DisplayName("Ошибка: продавец не может быть создан без названия компании")
         void shouldFailWhenSellerHasNoCompanyName() {
             UserEntity invalidSeller = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email("no_company_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.SELLER)
@@ -217,6 +226,7 @@ class UserRepositoryTest extends DatabaseUnitTestConfiguration {
         @DisplayName("Ошибка: продавец не может быть создан без ИНН")
         void shouldFailWhenSellerHasNoInn() {
             UserEntity invalidSeller = UserEntity.builder()
+                    .id(UUID.randomUUID())
                     .email("no_inn_" + UUID.randomUUID() + "@example.com")
                     .passwordHash("hash")
                     .role(Role.SELLER)
