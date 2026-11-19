@@ -1,7 +1,9 @@
 name: Deploy to VM
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Backend CI"]
+    types: [completed]
     branches: [main]
 
 permissions: {}
@@ -12,12 +14,18 @@ concurrency:
 
 jobs:
   deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Update main and restart services
+      - name: Deploy tested main commit
         shell: bash
         env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -25,6 +33,7 @@ jobs:
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
           : "${DEPLOY_HOST:?Missing DEPLOY_HOST}"
           : "${DEPLOY_USER:?Missing DEPLOY_USER}"
           : "${DEPLOY_SSH_KEY:?Missing DEPLOY_SSH_KEY}"
@@ -38,18 +47,24 @@ jobs:
           ssh -T -p "$DEPLOY_PORT" -i "$ssh_dir/key" \
             -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o "UserKnownHostsFile=$ssh_dir/known_hosts" -o ConnectTimeout=15 \
-            -- "$DEPLOY_USER@$DEPLOY_HOST" 'bash -se' <<'DEPLOY'
+            -- "$DEPLOY_USER@$DEPLOY_HOST" "bash -se -- '$DEPLOY_SHA'" <<'DEPLOY'
           set -euo pipefail
+          deploy_sha="$1"
+          [[ "$deploy_sha" =~ ^[0-9a-f]{40}$ ]]
           cd "$HOME/marketplace-backend"
+          export GIT_TERMINAL_PROMPT=0
+          git fetch origin main
+          if [[ "$(git rev-parse FETCH_HEAD)" != "$deploy_sha" ]]; then
+            echo 'Skipping deployment because main has a newer commit awaiting CI.'
+            exit 0
+          fi
           if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
             echo 'The deployment checkout has changes to tracked files.' >&2
             exit 1
           fi
-          export GIT_TERMINAL_PROMPT=0
           git switch main
-          git fetch origin main
-          git merge --ff-only FETCH_HEAD
-          if [[ "$(git rev-parse HEAD)" != "$(git rev-parse FETCH_HEAD)" ]]; then
+          git merge --ff-only "$deploy_sha"
+          if [[ "$(git rev-parse HEAD)" != "$deploy_sha" ]]; then
             echo 'The local main branch contains commits absent from origin/main.' >&2
             exit 1
           fi
