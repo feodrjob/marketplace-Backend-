@@ -67,6 +67,15 @@ public class CategoryEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    public void setParent(CategoryEntity parent) {
+        this.parent = parent;
+        if (parent != null) {
+            this.parentId = parent.getId();
+        } else {
+            this.parentId = null;
+        }
+    }
+
     public void addSubcategory(CategoryEntity child) {
         if (this.subcategories == null) {
             this.subcategories = new ArrayList<>();

@@ -25,11 +25,17 @@ public interface ProductRepository extends JpaRepository<ProductEntity, UUID>, J
 
     Page<ProductEntity> findAllByStatusAndCategoryIdIn(ProductStatus status, Collection<UUID> categoryIds, Pageable pageable);
 
+    Page<ProductEntity> findAllByStatusAndCategorySlug(ProductStatus status, String slug, Pageable pageable);
+
+    Page<ProductEntity> findAllByStatusAndCategorySlugIn(ProductStatus status, Collection<String> slugs, Pageable pageable);
+
     Page<ProductEntity> findAllBySellerId(UUID sellerId, Pageable pageable);
 
     Page<ProductEntity> findAllBySellerIdAndStatus(UUID sellerId, ProductStatus status, Pageable pageable);
 
     Page<ProductEntity> findAllBySellerIdAndCategoryId(UUID sellerId, UUID categoryId, Pageable pageable);
+
+    Page<ProductEntity> findAllBySellerIdAndCategorySlug(UUID sellerId, String slug, Pageable pageable);
 
     boolean existsByIdAndStatus(UUID id, ProductStatus status);
 

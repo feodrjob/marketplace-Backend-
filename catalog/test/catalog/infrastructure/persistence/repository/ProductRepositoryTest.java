@@ -227,6 +227,22 @@ class ProductRepositoryTest extends DatabaseUnitTestConfiguration {
             );
             assertTrue(multipleCategoriesPage.getContent().stream().anyMatch(p -> p.getTitle().equals("Чистая архитектура")));
             assertTrue(multipleCategoriesPage.getContent().stream().anyMatch(p -> p.getTitle().equals("Умные часы")));
+
+            Page<ProductEntity> slugPage = productRepository.findAllByStatusAndCategorySlug(
+                    ProductStatus.ACTIVE,
+                    "books",
+                    PageRequest.of(0, 10)
+            );
+            assertTrue(slugPage.getContent().stream().anyMatch(p -> p.getTitle().equals("Чистая архитектура")));
+            assertTrue(slugPage.getContent().stream().noneMatch(p -> p.getTitle().equals("Умные часы")));
+
+            Page<ProductEntity> multipleSlugsPage = productRepository.findAllByStatusAndCategorySlugIn(
+                    ProductStatus.ACTIVE,
+                    List.of("books", "gadgets"),
+                    PageRequest.of(0, 10)
+            );
+            assertTrue(multipleSlugsPage.getContent().stream().anyMatch(p -> p.getTitle().equals("Чистая архитектура")));
+            assertTrue(multipleSlugsPage.getContent().stream().anyMatch(p -> p.getTitle().equals("Умные часы")));
         }
 
         @Test

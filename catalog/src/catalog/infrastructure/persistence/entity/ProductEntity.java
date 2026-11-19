@@ -83,6 +83,13 @@ public class ProductEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    public void setCategory(CategoryEntity category) {
+        this.category = category;
+        if (category != null) {
+            this.categoryId = category.getId();
+        }
+    }
+
     public void addImage(UUID mediaId, int sortOrder) {
         ProductImageEntity imageEntity = ProductImageEntity.builder()
                 .id(new ProductImageId(this.id, mediaId))
