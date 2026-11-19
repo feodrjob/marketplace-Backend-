@@ -6,8 +6,10 @@ COPY --chmod=0755 gradlew ./
 COPY gradle/ gradle/
 COPY settings.gradle build.gradle ./
 COPY catalog/ catalog/
+COPY auth/build.gradle auth/build.gradle
 
-RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon :catalog:bootJar
+RUN --mount=type=cache,target=/root/.gradle \
+    JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true" ./gradlew --no-daemon :catalog:bootJar
 
 FROM eclipse-temurin:21-jre-jammy@sha256:1eac8b8fee11ca7d6725a48bc5d41992ed1561504ebae25490d2d062847e8269
 WORKDIR /app

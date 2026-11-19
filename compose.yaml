@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: auth/Dockerfile
+      network: host
     restart: unless-stopped
     ports:
       - "${BACKEND_BIND:-127.0.0.1}:${BACKEND_PORT:-8080}:8081"
