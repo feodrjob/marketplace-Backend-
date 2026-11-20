@@ -31,13 +31,26 @@ fi
 project="${project:-marketplace-backend}"
 [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]]
 
-docker image load --input images.tar.gz
+# Credentials are supplied by Actions in a temporary directory, removed after deploy.
+export DOCKER_CONFIG="$bundle/docker-config"
+test -f "$DOCKER_CONFIG/config.json" || { echo 'Missing registry login.' >&2; exit 1; }
 release="$(mktemp -d "$state_dir/releases/$sha.XXXXXXXX")"
 cp compose.json platform SHA256SUMS "$release/"
 printf '%s\n' "$project" > "$release/project"
 compose=(docker compose --project-name "$project" --project-directory "$app_dir"
   --env-file "$app_dir/.env" -f "$release/compose.json")
 "${compose[@]}" config --quiet
+for attempt in 1 2 3; do
+  if timeout 300s "${compose[@]}" pull; then
+    break
+  fi
+  if (( attempt == 3 )); then
+    echo 'Failed to pull release images after three attempts; containers were not updated.' >&2
+    exit 1
+  fi
+  echo "Image pull attempt $attempt failed; retrying in 5 seconds." >&2
+  sleep 5
+done
 if ! "${compose[@]}" up --no-build --pull never --remove-orphans --wait --wait-timeout 180; then
   "${compose[@]}" ps -a
   echo "Deployment failed. Last successful release: $state_dir/current" >&2

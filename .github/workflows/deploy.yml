@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 45
     env:
       DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+      REGISTRY_HOST: pmtbank.cr.cloud.ru
     steps:
       - uses: actions/checkout@v6
         with:
@@ -84,15 +85,29 @@ jobs:
       - uses: docker/setup-buildx-action@v3
         if: steps.latest.outputs.current == 'true'
 
-      - name: Build and package all Compose images
+      - name: Log in to Cloud.ru registry
         if: steps.latest.outputs.current == 'true'
-        run: python3 deploy/package.py "$DEPLOY_SHA" "$VM_PLATFORM" "$RUNNER_TEMP/deploy-bundle"
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${REGISTRY_USERNAME:?Missing REGISTRY_USERNAME secret (Cloud.ru Key ID)}"
+          : "${REGISTRY_PASSWORD:?Missing REGISTRY_PASSWORD secret (Cloud.ru Key Secret)}"
+          printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" \
+            --username "$REGISTRY_USERNAME" --password-stdin
 
-      - name: Transfer bundle and deploy without VM internet access
+      - name: Publish all Compose images to Cloud.ru
+        if: steps.latest.outputs.current == 'true'
+        run: python3 deploy/package.py "$DEPLOY_SHA" "$VM_PLATFORM" "$REGISTRY_HOST" "$RUNNER_TEMP/deploy-bundle"
+
+      - name: Transfer release configuration and deploy from registry
         if: steps.latest.outputs.current == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           DEPLOY_PROJECT_NAME: ${{ vars.DEPLOY_PROJECT_NAME }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         run: |
           set -euo pipefail
           head_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
@@ -109,9 +124,16 @@ jobs:
           stage="$("$RUNNER_TEMP/deploy-ssh/connect" 'umask 077; mkdir -p "$HOME/.marketplace-deploy"; mktemp -d "$HOME/.marketplace-deploy/incoming.XXXXXXXX"')"
           [[ "$stage" == /*/.marketplace-deploy/incoming.* ]]
           trap 'remote rm -rf -- "$stage" || true' EXIT
+          # This bundle contains only configuration and the installer, no images.
           tar -C "$RUNNER_TEMP/deploy-bundle" -cf - . | remote tar -C "$stage" -xf -
+          # Send credentials over encrypted stdin, never as remote command arguments.
+          printf '%s\n%s\n' "$REGISTRY_USERNAME" "$REGISTRY_PASSWORD" | \
+            remote bash -c 'set -euo pipefail; umask 077; IFS= read -r registry_user; docker --config "$1" login "$2" --username "$registry_user" --password-stdin' \
+              bash "$stage/docker-config" "$REGISTRY_HOST"
           remote bash "$stage/install.sh" "$stage" "$DEPLOY_SHA" "$DEPLOY_PROJECT_NAME"
 
-      - name: Remove SSH credentials
+      - name: Remove registry and SSH credentials
         if: always()
-        run: rm -rf -- "$RUNNER_TEMP/deploy-ssh"
+        run: |
+          docker logout "$REGISTRY_HOST" || true
+          rm -rf -- "$RUNNER_TEMP/deploy-ssh"
