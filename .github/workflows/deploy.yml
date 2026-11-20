@@ -60,16 +60,36 @@ jobs:
           mkdir -p "$RUNNER_TEMP/deploy-ssh"
           printf '%s\n' "$DEPLOY_SSH_KEY" > "$RUNNER_TEMP/deploy-ssh/key"
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$RUNNER_TEMP/deploy-ssh/known_hosts"
-          # Quote each argument when writing a private SSH wrapper.
+          # Retry establishing a shared connection; execute each remote command once.
           {
-            printf '#!/usr/bin/env bash\nexec '
+            printf '#!/usr/bin/env bash\nset -euo pipefail\nssh_base=('
             printf '%q ' ssh -T -p "$DEPLOY_PORT" -i "$RUNNER_TEMP/deploy-ssh/key" \
               -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
               -o "UserKnownHostsFile=$RUNNER_TEMP/deploy-ssh/known_hosts" \
-              -o ConnectionAttempts=11 -o ConnectTimeout=15 \
-              -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
-              -- "$DEPLOY_USER@$DEPLOY_HOST"
-            printf '"$@"\n'
+              -o "ControlPath=$RUNNER_TEMP/deploy-ssh/control" -o ControlPersist=3600 \
+              -o ConnectionAttempts=1 -o ConnectTimeout=15 \
+              -o ServerAliveInterval=15 -o ServerAliveCountMax=4
+            printf ')\ndestination=%q\n' "$DEPLOY_USER@$DEPLOY_HOST"
+            cat <<'CONNECT'
+          for attempt in {1..11}; do
+            if "${ssh_base[@]}" -O check "$destination" >/dev/null 2>&1; then
+              break
+            fi
+            if "${ssh_base[@]}" -M -N -f "$destination" </dev/null; then
+              break
+            else
+              status=$?
+            fi
+            if (( attempt == 11 )); then
+              echo 'SSH connection failed after 11 attempts.' >&2
+              exit "$status"
+            fi
+            echo "SSH connection attempt $attempt/11 failed; retrying in 5 seconds." >&2
+            sleep 5
+          done
+          # If the master dies here, fail instead of replaying a remote operation.
+          exec "${ssh_base[@]}" -o ProxyCommand=false -- "$destination" "$@"
+          CONNECT
           } > "$RUNNER_TEMP/deploy-ssh/connect"
           chmod 700 "$RUNNER_TEMP/deploy-ssh/connect"
           arch="$("$RUNNER_TEMP/deploy-ssh/connect" 'set -eu; test -r "$HOME/marketplace-backend/.env"; command -v flock >/dev/null; command -v sha256sum >/dev/null; docker compose version >/dev/null; docker info --format "{{.Architecture}}"')"
@@ -135,5 +155,8 @@ jobs:
       - name: Remove registry and SSH credentials
         if: always()
         run: |
+          if [[ -S "$RUNNER_TEMP/deploy-ssh/control" ]]; then
+            ssh -S "$RUNNER_TEMP/deploy-ssh/control" -O exit ignored || true
+          fi
           docker logout "$REGISTRY_HOST" || true
           rm -rf -- "$RUNNER_TEMP/deploy-ssh"
