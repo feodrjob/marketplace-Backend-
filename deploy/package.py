@@ -9,7 +9,6 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import tempfile
 
 
 def run(*args, **kwargs):
@@ -25,6 +24,27 @@ def runtime_config(config, images):
         service["image"] = images[name]
         service["pull_policy"] = "missing"
     return config
+
+
+def published_image(repository, tag):
+    """Hash the target registry's manifest, not the local source image/index."""
+    manifest = run(
+        "docker", "buildx", "imagetools", "inspect", "--raw", tag,
+        capture_output=True,
+    ).stdout
+    if json.loads(manifest).get("schemaVersion") != 2:
+        raise ValueError(f"Unsupported registry manifest for {tag}")
+    digest = "sha256:" + hashlib.sha256(manifest).hexdigest()
+    reference = f"{repository}@{digest}"
+    # Check the exact reference the VM will pull before shipping the release.
+    pinned_manifest = run(
+        "docker", "buildx", "imagetools", "inspect", "--raw", reference,
+        capture_output=True,
+    ).stdout
+    if pinned_manifest != manifest:
+        raise ValueError(f"Registry manifest mismatch for {reference}")
+    print(f"Verified published image: {reference}", flush=True)
+    return reference
 
 
 def main():
@@ -54,30 +74,19 @@ def main():
         tag = f"{repository}:{args.sha}"
         build = service.get("build")
         if build:
-            with tempfile.TemporaryDirectory() as directory:
-                metadata = Path(directory) / "metadata.json"
-                command = ["docker", "buildx", "build", "--push", "--platform", args.platform,
-                           "--tag", tag, "--metadata-file", str(metadata),
-                           "--file", str(Path(build["context"]) / build.get("dockerfile", "Dockerfile"))]
-                for key, value in build.get("args", {}).items():
-                    command.extend(["--build-arg", f"{key}={value}"])
-                command.append(build["context"])
-                run(*command)
-                digest = json.loads(metadata.read_text())["containerimage.digest"]
+            command = ["docker", "buildx", "build", "--push", "--platform", args.platform,
+                       "--tag", tag,
+                       "--file", str(Path(build["context"]) / build.get("dockerfile", "Dockerfile"))]
+            for key, value in build.get("args", {}).items():
+                command.extend(["--build-arg", f"{key}={value}"])
+            command.append(build["context"])
+            run(*command)
         else:
             # Mirror dependencies too: the VM only needs access to our registry.
             run("docker", "pull", "--platform", args.platform, service["image"])
             run("docker", "tag", service["image"], tag)
             run("docker", "push", tag)
-            references = json.loads(run(
-                "docker", "image", "inspect", tag, "--format", "{{json .RepoDigests}}",
-                capture_output=True, text=True,
-            ).stdout)
-            digest = next(ref.split("@", 1)[1] for ref in references
-                          if ref.startswith(f"{repository}@"))
-        if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
-            raise ValueError(f"Invalid published digest for {name}: {digest}")
-        images[name] = f"{repository}@{digest}"
+        images[name] = published_image(repository, tag)
     (args.output / "compose.json").write_text(
         json.dumps(runtime_config(config, images), indent=2) + "\n"
     )
