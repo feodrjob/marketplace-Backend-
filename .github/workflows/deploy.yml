@@ -148,9 +148,7 @@ jobs:
           tar -C "$RUNNER_TEMP/deploy-bundle" -cf - . | remote tar -C "$stage" -xf -
           # Send credentials over encrypted stdin, never as remote command arguments.
           printf '%s\n%s\n' "$REGISTRY_USERNAME" "$REGISTRY_PASSWORD" | \
-            remote bash -c 'set -euo pipefail; umask 077; IFS= read -r registry_user; docker --config "$1" login "$2" --username "$registry_user" --password-stdin' \
-              bash "$stage/docker-config" "$REGISTRY_HOST"
-          remote bash "$stage/install.sh" "$stage" "$DEPLOY_SHA" "$DEPLOY_PROJECT_NAME"
+            remote bash "$stage/install.sh" "$stage" "$DEPLOY_SHA" "$DEPLOY_PROJECT_NAME" "$REGISTRY_HOST"
 
       - name: Remove registry and SSH credentials
         if: always()

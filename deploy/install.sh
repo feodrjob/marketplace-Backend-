@@ -31,9 +31,36 @@ fi
 project="${project:-marketplace-backend}"
 [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]]
 
-# Credentials are supplied by Actions in a temporary directory, removed after deploy.
+# Read once so every login attempt receives the complete password over stdin.
+registry="${4:?Registry hostname required}"
+[[ "$registry" =~ ^[a-z0-9][a-z0-9.-]*\.cr\.cloud\.ru$ ]]
+IFS= read -r registry_user
+IFS= read -r registry_password
+umask 077
 export DOCKER_CONFIG="$bundle/docker-config"
-test -f "$DOCKER_CONFIG/config.json" || { echo 'Missing registry login.' >&2; exit 1; }
+for attempt in {1..11}; do
+  if printf '%s' "$registry_password" | timeout 45s docker login "$registry" \
+      --username "$registry_user" --password-stdin; then
+    break
+  fi
+  if (( attempt == 11 )); then
+    echo 'Registry login failed after 11 attempts. Checking VM connectivity:' >&2
+    getent ahostsv4 "$registry" >&2 || true
+    if command -v curl >/dev/null; then
+      for mode in IPv4 default; do
+        curl_options=()
+        if [[ "$mode" == IPv4 ]]; then curl_options=(-4); fi
+        curl "${curl_options[@]}" -sS -o /dev/null --connect-timeout 10 --max-time 20 \
+          -w "Registry $mode: HTTP %{http_code}, remote %{remote_ip}, connect %{time_connect}s, TLS %{time_appconnect}s\n" \
+          "https://$registry/v2/" >&2 || true
+      done
+    fi
+    exit 1
+  fi
+  echo "Registry login attempt $attempt/11 failed; retrying in 5 seconds." >&2
+  sleep 5
+done
+unset registry_password
 release="$(mktemp -d "$state_dir/releases/$sha.XXXXXXXX")"
 cp compose.json platform SHA256SUMS "$release/"
 printf '%s\n' "$project" > "$release/project"
