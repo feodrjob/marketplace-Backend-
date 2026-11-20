@@ -5,6 +5,7 @@ import auth.exception.FieldValidationException;
 import auth.exception.InvalidCredentialsException;
 import auth.exception.InvalidTokenException;
 import auth.exception.UserNotFoundException;
+import auth.exception.SellerShopNotFoundException;
 import auth.web.dto.error.ProblemResponse;
 import auth.web.dto.error.ValidationProblemResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,6 +17,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import auth.exception.InnAlreadyUsedException;
 
 import java.time.Instant;
@@ -91,6 +93,25 @@ public class GlobalExceptionHandler {
                 exception.getMessage(),
                 request
         );
+    }
+
+    // Возвращаем 404 для отсутствующего магазина.
+    @ExceptionHandler(SellerShopNotFoundException.class)
+    public ResponseEntity<ProblemResponse> handleSellerShopNotFound(
+            SellerShopNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return problem(HttpStatus.NOT_FOUND, "Not Found", exception.getMessage(), request);
+    }
+
+    // Возвращаем 400 для неверных параметров.
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ProblemResponse> handleInvalidParameter(
+            MethodArgumentTypeMismatchException exception,
+            HttpServletRequest request
+    ) {
+        return problem(HttpStatus.BAD_REQUEST, "Bad Request",
+                "Некорректное значение параметра '" + exception.getName() + "'", request);
     }
 
     private ResponseEntity<ValidationProblemResponse> unprocessable(

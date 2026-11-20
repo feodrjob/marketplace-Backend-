@@ -31,6 +31,8 @@ services:
     ports:
       - "${CATALOG_BIND:-127.0.0.1}:${CATALOG_PORT:-8083}:8083"
     environment:
+      # Внутри Compose обращаемся к Auth по имени сервиса.
+      CATALOG_AUTH_BASE_URL: http://auth:8081
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/marketplace?currentSchema=catalog,public
       SPRING_DATASOURCE_USERNAME: marketplace
       SPRING_DATASOURCE_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
