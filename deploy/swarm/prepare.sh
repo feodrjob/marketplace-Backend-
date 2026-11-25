@@ -3,6 +3,7 @@
 set -euo pipefail
 umask 077
 state="$HOME/.marketplace-swarm"
+here="$(cd -- "$(dirname -- "$0")" && pwd)"
 mkdir -p "$state/backups"
 exec 9>"$state/deploy.lock"
 flock -w 30 9
@@ -38,6 +39,28 @@ docker exec -i "$check" pg_restore --no-owner --exit-on-error -U marketplace -d 
 cleanup
 trap - EXIT
 printf '%s\n' "$backup" > "$state/verified-backup"
+
+# The existing cloud security group allows all incoming traffic. Do not expose
+# Swarm control/gossip/VXLAN to the Internet when enabling the new runtime.
+sudo -n install -m 755 "$here/firewall.sh" /usr/local/sbin/marketplace-swarm-firewall
+unit="$(mktemp)"
+cat > "$unit" <<'UNIT'
+[Unit]
+Description=Protect single-node marketplace Swarm cluster ports
+After=network-online.target
+Before=docker.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/marketplace-swarm-firewall
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo -n install -m 644 "$unit" /etc/systemd/system/marketplace-swarm-firewall.service
+rm -f "$unit"
+sudo -n systemctl daemon-reload
+sudo -n systemctl enable --now marketplace-swarm-firewall.service
 
 if [[ "$(docker info --format '{{.Swarm.LocalNodeState}}')" == inactive ]]; then
   # This deployment has one manager. Do not expose its control API publicly.
