@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: backend-release-${{ github.ref }}
+  group: backend-release-${{ github.ref }}-${{ inputs.operation || 'build' }}
   cancel-in-progress: false
 
 jobs:
