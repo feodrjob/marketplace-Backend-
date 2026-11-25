@@ -63,6 +63,16 @@ GITHUB_TOKEN должен иметь packages:write на сборке и package
 Пакет GHCR должен разрешать доступ своему репозиторию в Manage Actions access.
 Публиковать приватные образы публично для этого не требуется.
 
+## Операции из Actions
+
+Build workflow поддерживает workflow_dispatch с operation: build, inspect,
+fix-dns, prepare, cutover. inspect проверяет подключение и DNS; fix-dns включает
+штатный DNS-over-TCP (use-vc), если UDP DNS недоступен. Прежняя конфигурация
+резолвера сохраняется, при неуспешной проверке автоматически восстанавливается.
+Traefik использует host resolv.conf, чтобы запросы ACME также шли по TCP.
+prepare/cutover выполняют описанную ниже миграцию. Запускать их следует из
+проверенного commit; cutover вызывает остановку старой БД и nginx.
+
 ## Однократная миграция существующей VM
 
 Работает на текущей VM с Compose-контейнерами `marketplace-backend-*-1`.

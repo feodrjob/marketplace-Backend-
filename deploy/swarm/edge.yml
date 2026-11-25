@@ -29,6 +29,7 @@ services:
         mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/resolv.conf:/etc/resolv.conf:ro
       - certificates:/letsencrypt
     networks: [edge]
     healthcheck:

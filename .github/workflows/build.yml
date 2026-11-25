@@ -4,6 +4,12 @@ on:
   push:
     branches: [main, codex/swarm-deploy]
   workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Build images or maintain the single-node Swarm VPS'
+        type: choice
+        default: build
+        options: [build, inspect, fix-dns, prepare, cutover]
 
 permissions:
   contents: read
@@ -14,6 +20,7 @@ concurrency:
 
 jobs:
   checks:
+    if: github.event_name != 'workflow_dispatch' || inputs.operation == 'build'
     uses: ./.github/workflows/ci.yml
 
   build:
@@ -61,3 +68,49 @@ jobs:
       packages: read
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
+
+  operations:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation != 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Maintain VPS
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          case "$OPERATION" in inspect|fix-dns|prepare|cutover) ;; *) exit 1 ;; esac
+          [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]
+          umask 077
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$ssh_dir"' EXIT
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          options=(-i "$ssh_dir/key" -o BatchMode=yes -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$ssh_dir/known_hosts"
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3)
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          if [[ "$OPERATION" == inspect ]]; then
+            ssh -T -p "$DEPLOY_PORT" "${options[@]}" "$target" 'bash -se' <<'REMOTE'
+          docker info --format 'Swarm={{.Swarm.LocalNodeState}}'
+          docker ps --format '{{.Names}} {{.Status}}'
+          RES_OPTIONS='use-vc timeout:2 attempts:2' getent ahostsv4 87.242.102.190.nip.io
+          RES_OPTIONS='use-vc timeout:2 attempts:2' curl --max-time 20 -sS -o /dev/null -w 'GHCR HTTP=%{http_code}\n' https://ghcr.io/v2/
+          REMOTE
+          else
+            remote_dir=".marketplace-swarm/operations/$GITHUB_SHA-$GITHUB_RUN_ID"
+            ssh -p "$DEPLOY_PORT" "${options[@]}" "$target" "umask 077; mkdir -p '$remote_dir'"
+            scp -P "$DEPLOY_PORT" "${options[@]}" deploy/swarm/* "$target:$remote_dir/"
+            script="$OPERATION.sh"
+            if [[ "$OPERATION" == fix-dns ]]; then script=dns-tcp.sh; fi
+            ssh -T -p "$DEPLOY_PORT" "${options[@]}" "$target" "bash '$remote_dir/$script'"
+          fi
