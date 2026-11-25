@@ -46,6 +46,7 @@ server:
     access-control: 127.0.0.0/8 allow
     access-control: 172.16.0.0/12 allow
     do-ip6: no
+    ip-freebind: yes
     tcp-upstream: yes
     prefetch: yes
 forward-zone:
@@ -58,8 +59,8 @@ sudo -n install -m 644 "$config/unbound.conf" /etc/unbound/unbound.conf.d/market
 sudo -n mkdir -p /etc/systemd/system/unbound.service.d
 cat > "$config/service.conf" <<'UNIT'
 [Unit]
-After=docker.service
-Wants=docker.service
+After=network-online.target
+Wants=network-online.target
 UNIT
 sudo -n install -m 644 "$config/service.conf" /etc/systemd/system/unbound.service.d/marketplace.conf
 sudo -n unbound-checkconf
