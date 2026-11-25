@@ -41,7 +41,7 @@ printf '%s\n' "$backup" > "$state/verified-backup"
 
 if [[ "$(docker info --format '{{.Swarm.LocalNodeState}}')" == inactive ]]; then
   # This deployment has one manager. Do not expose its control API publicly.
-  docker swarm init --advertise-addr "${SWARM_ADVERTISE_ADDR:-87.242.102.190}" --listen-addr 127.0.0.1:2377 >/dev/null
+  docker swarm init --advertise-addr "${SWARM_ADVERTISE_ADDR:-127.0.0.1}" --listen-addr 127.0.0.1:2377 >/dev/null
 fi
 test "$(docker info --format '{{.Swarm.ControlAvailable}}')" == true
 docker node update --label-add marketplace.data=true "$(docker info --format '{{.Swarm.NodeID}}')" >/dev/null
