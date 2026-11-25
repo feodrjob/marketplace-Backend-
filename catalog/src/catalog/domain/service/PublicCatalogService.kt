@@ -4,7 +4,10 @@ import catalog.domain.mapper.PublicProductMapper
 import catalog.domain.model.CategoryListingQuery
 import catalog.domain.model.CategoryModel
 import catalog.domain.model.CategoryNode
+import catalog.domain.model.CatalogTextScore
+import catalog.domain.model.ProductListingQuery
 import catalog.domain.model.ProductModel
+import catalog.domain.model.ProductPage
 import catalog.domain.model.PublicProductCard
 import catalog.domain.repository.CategoryRepository
 import catalog.domain.repository.ProductRepository
@@ -19,6 +22,7 @@ import java.util.UUID
  * <p>
  * Отдаёт категории, список товаров [catalog.common.enums.ProductStatus.ACTIVE]
  * и карточку. Скрытый и архивный товар для гостя неотличим от отсутствующего.
+ * Поиск, фильтры, сортировка и страница применяются после этого отбора.
  * </p>
  *
  * @param categories хранилище категорий
@@ -54,18 +58,41 @@ class PublicCatalogService(
     }
 
     /**
-     * Возвращает товары витрины.
+     * Возвращает товары витрины без страницы.
      *
      * <p>Только ACTIVE в публичной категории. Более новые идут первыми.</p>
      *
      * @return карточки без скрытых и архивных товаров
      */
     fun listProducts(): List<PublicProductCard> {
+        return listProducts(ProductListingQuery.all()).items
+    }
+
+    /**
+     * Ищет, фильтрует, сортирует и режет страницу витрины.
+     *
+     * <p>
+     * Скрытые и архивные товары в выдачу не попадают.
+     * Текст без явной сортировки упорядочивает карточки по весу совпадения.
+     * </p>
+     *
+     * @param query проверенные параметры US-2.2
+     * @return страница карточек и полное число совпадений
+     */
+    fun listProducts(query: ProductListingQuery): ProductPage {
         val categoriesById = visibility.index(categories.findAll())
-        return products.findAll()
+        val matched = products.findAll()
             .filter { product -> isOnStorefront(product, categoriesById) }
-            .sortedWith(PRODUCT_ORDER)
-            .map { product -> toCard(product, categoriesById.getValue(product.categoryId)) }
+            .mapNotNull { product -> scored(product, query) }
+            .filter { scored -> matches(scored.product, categoriesById.getValue(scored.product.categoryId), query) }
+            .sortedWith(order(query))
+        val pageItems = if (query.unpaged) matched else slice(matched, query.page, query.size)
+        return ProductPage(
+            items = pageItems.map { scored -> toCard(scored.product, categoriesById.getValue(scored.product.categoryId)) },
+            page = query.page,
+            size = if (query.unpaged) pageItems.size else query.size,
+            total = matched.size,
+        )
     }
 
     /**
@@ -151,6 +178,78 @@ class PublicCatalogService(
         return grouped
     }
 
+    private fun scored(product: ProductModel, query: ProductListingQuery): ScoredProduct? {
+        val text = query.text ?: return ScoredProduct(product, 0.0)
+        val score = CatalogTextScore.score(product.title, product.description, text)
+        if (score == 0.0) {
+            return null
+        }
+        return ScoredProduct(product, score)
+    }
+
+    private fun matches(product: ProductModel, category: CategoryModel, query: ProductListingQuery): Boolean {
+        if (query.priceMin != null && product.price < query.priceMin) {
+            return false
+        }
+        if (query.priceMax != null && product.price > query.priceMax) {
+            return false
+        }
+        if (query.sellerIds.isNotEmpty() && product.sellerId !in query.sellerIds) {
+            return false
+        }
+        if (product.sellerId in query.excludedSellerIds) {
+            return false
+        }
+        if (query.categorySlugs.isNotEmpty() && category.slug !in query.categorySlugs) {
+            return false
+        }
+        if (category.slug in query.excludedCategorySlugs) {
+            return false
+        }
+        if (query.categoryIds.isNotEmpty() && product.categoryId !in query.categoryIds) {
+            return false
+        }
+        if (product.categoryId in query.excludedCategoryIds) {
+            return false
+        }
+        return true
+    }
+
+    private fun order(query: ProductListingQuery): Comparator<ScoredProduct> {
+        val sort = query.sort
+        if (sort == null) {
+            if (query.text != null) {
+                return compareByDescending<ScoredProduct> { it.score }
+                    .thenByDescending { it.product.createdAt }
+                    .thenBy { it.product.id }
+            }
+            return compareByDescending<ScoredProduct> { it.product.createdAt }.thenBy { it.product.id }
+        }
+        val byField = when (sort.field) {
+            "price" -> if (sort.ascending) {
+                compareBy<ScoredProduct> { it.product.price }
+            } else {
+                compareByDescending { it.product.price }
+            }
+            else -> if (sort.ascending) {
+                compareBy<ScoredProduct> { it.product.createdAt }
+            } else {
+                compareByDescending { it.product.createdAt }
+            }
+        }
+        return byField.thenBy { it.product.id }
+    }
+
+    private fun <T> slice(items: List<T>, page: Int, size: Int): List<T> {
+        val start = page.toLong() * size.toLong()
+        if (start >= items.size) {
+            return emptyList()
+        }
+        val from = start.toInt()
+        val to = minOf(items.size, from + size)
+        return items.subList(from, to)
+    }
+
     private fun isOnStorefront(product: ProductModel, categoriesById: Map<UUID, CategoryModel>): Boolean {
         if (!product.isActive()) {
             return false
@@ -162,8 +261,12 @@ class PublicCatalogService(
         return productCards.toCard(product, category, sellerShops.findBySellerId(product.sellerId))
     }
 
+    private class ScoredProduct(
+        val product: ProductModel,
+        val score: Double,
+    )
+
     private companion object {
         val CATEGORY_ORDER = compareBy<CategoryModel> { it.sortOrder }.thenBy { it.name }.thenBy { it.id }
-        val PRODUCT_ORDER = compareByDescending<ProductModel> { it.createdAt }.thenBy { it.id }
     }
 }
