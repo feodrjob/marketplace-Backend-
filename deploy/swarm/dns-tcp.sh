@@ -7,7 +7,19 @@ state="$HOME/.marketplace-swarm"
 mkdir -p "$state"
 exec 9>"$state/deploy.lock"
 flock -w 30 9
-timeout 15 env RES_OPTIONS='use-vc timeout:2 attempts:2' getent ahostsv4 ghcr.io >/dev/null
+resolved=false
+for attempt in {1..4}; do
+  echo "Checking upstream TCP DNS ($attempt/4)."
+  if timeout 15 env RES_OPTIONS='use-vc timeout:2 attempts:2' getent ahostsv4 ghcr.io; then
+    resolved=true
+    break
+  fi
+  sleep 2
+done
+if [[ "$resolved" != true ]]; then
+  echo 'TCP DNS bootstrap failed. No resolver settings have been changed.' >&2
+  exit 1
+fi
 
 # Also fix the missing local hostname entry that causes sudo lookup delays.
 sudo -n python3 - "$state/hosts.before-marketplace" <<'PY'
