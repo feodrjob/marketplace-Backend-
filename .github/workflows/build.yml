@@ -120,7 +120,7 @@ jobs:
           docker info --format 'Swarm={{.Swarm.LocalNodeState}}'
           docker ps --format '{{.Names}} {{.Status}}'
           RES_OPTIONS='use-vc timeout:2 attempts:2' getent ahostsv4 87.242.102.190.nip.io
-          RES_OPTIONS='use-vc timeout:2 attempts:2' curl --max-time 20 -sS -o /dev/null -w 'GHCR HTTP=%{http_code}\n' https://ghcr.io/v2/
+          RES_OPTIONS='use-vc timeout:2 attempts:2' curl -4 --max-time 20 -sS -o /dev/null -w 'GHCR HTTP=%{http_code}\n' https://ghcr.io/v2/
           REMOTE
           else
             remote_dir=".marketplace-swarm/operations/$GITHUB_SHA-$GITHUB_RUN_ID"

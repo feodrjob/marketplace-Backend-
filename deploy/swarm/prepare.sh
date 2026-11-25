@@ -12,8 +12,8 @@ docker volume inspect marketplace-backend_postgres-data >/dev/null
 test "$(docker inspect "$db" --format '{{.State.Health.Status}}')" == healthy
 
 # Check networking before making any changes to Docker.
-curl --connect-timeout 10 --max-time 20 -fsS https://acme-v02.api.letsencrypt.org/directory >/dev/null
-code="$(curl --connect-timeout 10 --max-time 20 -sS -o /dev/null -w '%{http_code}' https://ghcr.io/v2/)"
+curl -4 --connect-timeout 10 --max-time 20 -fsS https://acme-v02.api.letsencrypt.org/directory >/dev/null
+code="$(curl -4 --connect-timeout 10 --max-time 20 -sS -o /dev/null -w '%{http_code}' https://ghcr.io/v2/)"
 [[ "$code" == 401 || "$code" == 200 ]]
 getent ahostsv4 "${APP_DOMAIN:-87.242.102.190.nip.io}" >/dev/null
 docker pull postgres:17-alpine

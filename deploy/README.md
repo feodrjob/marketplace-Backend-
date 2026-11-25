@@ -67,9 +67,13 @@ GITHUB_TOKEN должен иметь packages:write на сборке и package
 
 Build workflow поддерживает workflow_dispatch с operation: build, inspect,
 fix-dns, prepare, cutover. inspect проверяет подключение и DNS; fix-dns включает
-штатный DNS-over-TCP (use-vc), если UDP DNS недоступен. Прежняя конфигурация
-резолвера сохраняется, при неуспешной проверке автоматически восстанавливается.
-Traefik использует host resolv.conf, чтобы запросы ACME также шли по TCP.
+локальный Unbound из Ubuntu packages, если UDP DNS недоступен. Он слушает
+только loopback и Docker bridge, пересылает запросы upstream по TCP и сохраняет
+DNSSEC-проверку. IPv4/TCP используется также при первоначальной установке пакета.
+Перед изменением host DNS проверяются GHCR/nip.io через новый резолвер; настройка
+systemd-networkd сохраняется в drop-in. При неуспешной проверке host DNS прежние
+upstream-адреса восстанавливаются. Docker не перезапускается. Traefik использует
+host resolv.conf; его запросы ACME проходят через этот же резолвер.
 prepare/cutover выполняют описанную ниже миграцию. Запускать их следует из
 проверенного commit; cutover вызывает остановку старой БД и nginx.
 
