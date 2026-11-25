@@ -64,6 +64,11 @@ for _attempt in {1..60}; do
 done
 [[ "$ready" == true ]]
 sudo -n systemctl disable nginx
+# Prevent the legacy develop workflow from restarting Compose: it refuses
+# untracked files in this old checkout before running docker compose up.
+if [[ -d "$HOME/marketplace-frontend/.git" ]]; then
+  touch "$HOME/marketplace-frontend/.swarm-migration-completed"
+fi
 touch "$state/ready"
 trap - ERR
 echo 'Database and edge are ready. Deploy backend, then frontend.'

@@ -102,6 +102,12 @@ prepare/cutover выполняют описанную ниже миграцию.
    убрать прежний frontend с опубликованным 8082. Том БД и volume сертификатов
    не удалять. Для резервных копий нужен отдельный регулярный процесс.
 
+После cutover старый frontend checkout получает untracked marker
+`.swarm-migration-completed`: прежний deploy workflow develop останавливается
+на проверке чистоты и не запускает Compose поверх Swarm. После слияния PR
+синхронизировать develop с main, чтобы в develop тоже не осталось старого
+workflow. Marker удалять только при осознанном возврате к старому деплою.
+
 Архив БД и checksum находятся в `~/.marketplace-swarm/backups` с доступом только
 владельцу. Marker `ready` разрешает CI-деплой только после успешного cutover.
 
