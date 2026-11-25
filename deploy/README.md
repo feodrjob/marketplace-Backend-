@@ -4,9 +4,9 @@ Workflow: `.github/workflows/deploy.yml`. CI (`ci.yml`) не изменён.
 
 ## Запуск
 
-1. Изменения готовятся в `fix/deploy-vm`. Новая схема начнёт работать после слияния в `main`: GitHub использует workflow `workflow_run` из default branch.
-2. Push в `main` запускает существующий Backend CI. После его успешного завершения workflow подключается к VM по SSH. Проверки PR не запускают деплой.
-3. VM получает `origin/main`, сверяет вершину ветки с SHA завершившегося CI, переключается на `main` через fast-forward, собирает Docker-образы и запускает Compose с ожиданием healthcheck. Устаревший CI пропускается.
+1. Push в `main` напрямую запускает деплой: workflow подключается к VM по SSH, не дожидаясь Backend CI. Проверки PR не запускают деплой.
+2. VM получает `origin/main`, сверяет вершину ветки с SHA push, переключается на `main` через fast-forward, собирает Docker-образы и запускает Compose с ожиданием healthcheck. Устаревший запуск пропускается.
+3. Тесты остаются в отдельном Backend CI и не блокируют деплой. Dockerfile собирают `bootJar` без запуска тестов.
 
 ## Подготовка VM
 
@@ -25,4 +25,4 @@ Variable: `DEPLOY_PORT` (по умолчанию `22`).
 
 `DEPLOY_KNOWN_HOSTS` содержит предварительно проверенный SSH host key VM. Секреты registry больше не нужны этому workflow.
 
-Обновление выполняется через `git merge --ff-only`, затем одной командой `docker compose up --build --remove-orphans --wait`. Автоматического отката нет. `deploy/package.py` и `deploy/install.sh` остались как файлы прежней схемы, новый workflow их не вызывает.
+Обновление выполняется через `git merge --ff-only`, затем отдельными шагами `docker compose --progress plain build` и `docker compose up --no-build --remove-orphans --wait`. В Actions отдельно видны подготовка SSH, обновление кода, сборка и запуск. Автоматического отката нет. `deploy/package.py` и `deploy/install.sh` остались как файлы прежней схемы, новый workflow их не вызывает.
