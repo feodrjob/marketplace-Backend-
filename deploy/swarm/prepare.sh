@@ -26,9 +26,9 @@ test -s "$backup"
 sha256sum "$backup" > "$backup.sha256"
 # Verify actual restoration in a disposable, isolated database, not production.
 check="marketplace-restore-check-$$"
-cleanup() { docker rm -f "$check" >/dev/null 2>&1 || true; }
+cleanup() { docker rm -fv "$check" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
-docker run -d --name "$check" --network none --tmpfs /var/lib/postgresql/data \
+docker run -d --name "$check" --network none --mount type=volume,destination=/var/lib/postgresql/data \
   -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_USER=marketplace \
   -e POSTGRES_DB=marketplace postgres:17-alpine >/dev/null
 for _attempt in {1..30}; do
