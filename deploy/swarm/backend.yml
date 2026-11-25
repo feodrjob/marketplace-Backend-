@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  auth:
+    image: ghcr.io/${GHCR_OWNER:?Set GHCR_OWNER}/marketplace-auth:${IMAGE_TAG:?Set IMAGE_TAG}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/marketplace
+      SPRING_DATASOURCE_USERNAME: marketplace
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    secrets:
+      - source: postgres_password
+        target: spring.datasource.password
+        uid: '10001'
+        gid: '10001'
+        mode: 0400
+      - source: jwt_secret
+        target: auth.jwt.secret
+        uid: '10001'
+        gid: '10001'
+        mode: 0400
+    networks: [internal, edge]
+    healthcheck:
+      test: [CMD, bash, -c, 'true > /dev/tcp/127.0.0.1/8081']
+      interval: 5s
+      timeout: 3s
+      start_period: 45s
+      retries: 12
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        order: stop-first
+        monitor: 30s
+      labels:
+        traefik.enable: 'true'
+        traefik.swarm.network: marketplace-edge
+        traefik.http.routers.marketplace-auth.rule: Host(`${APP_DOMAIN:?Set APP_DOMAIN}`) && (PathPrefix(`/api/v1/auth/`) || Path(`/api/v1/auth`) || PathPrefix(`/api/v1/users/`) || Path(`/api/v1/users`))
+        traefik.http.routers.marketplace-auth.entrypoints: websecure
+        traefik.http.routers.marketplace-auth.tls.certresolver: le
+        traefik.http.routers.marketplace-auth.priority: '100'
+        traefik.http.services.marketplace-auth.loadbalancer.server.port: '8081'
+
+  catalog:
+    image: ghcr.io/${GHCR_OWNER:?Set GHCR_OWNER}/marketplace-catalog:${IMAGE_TAG:?Set IMAGE_TAG}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/marketplace?currentSchema=catalog,public
+      SPRING_DATASOURCE_USERNAME: marketplace
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    secrets:
+      - source: postgres_password
+        target: spring.datasource.password
+        uid: '10001'
+        gid: '10001'
+        mode: 0400
+    networks: [internal, edge]
+    healthcheck:
+      test: [CMD, bash, -c, 'true > /dev/tcp/127.0.0.1/8083']
+      interval: 5s
+      timeout: 3s
+      start_period: 45s
+      retries: 12
+    deploy:
+      # Enable only after the catalog startup and HTTP API are fixed.
+      replicas: ${CATALOG_REPLICAS:-0}
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      labels:
+        traefik.enable: 'true'
+        traefik.swarm.network: marketplace-edge
+        traefik.http.routers.marketplace-catalog.rule: Host(`${APP_DOMAIN:?Set APP_DOMAIN}`) && (PathPrefix(`/api/v1/products`) || PathPrefix(`/api/v1/categories`))
+        traefik.http.routers.marketplace-catalog.entrypoints: websecure
+        traefik.http.routers.marketplace-catalog.tls.certresolver: le
+        traefik.http.routers.marketplace-catalog.priority: '100'
+        traefik.http.services.marketplace-catalog.loadbalancer.server.port: '8083'
+
+networks:
+  internal:
+    external: true
+    name: marketplace-internal
+  edge:
+    external: true
+    name: marketplace-edge
+secrets:
+  postgres_password:
+    external: true
+    name: marketplace_postgres_password_v1
+  jwt_secret:
+    external: true
+    name: marketplace_jwt_secret_v1

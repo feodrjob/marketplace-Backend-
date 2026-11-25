@@ -1,77 +1,69 @@
-name: Deploy to VM
+name: Deploy backend to Swarm
 
 on:
-  push:
-    branches: [main]
+  workflow_call:
 
-permissions: {}
-
-concurrency:
-  group: marketplace-vm
-  cancel-in-progress: false
+permissions:
+  contents: read
+  packages: read
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
     env:
-
-      DEPLOY_SHA: ${{ github.sha }}
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      APP_DOMAIN: ${{ vars.APP_DOMAIN || '87.242.102.190.nip.io' }}
+      CATALOG_REPLICAS: ${{ vars.CATALOG_REPLICAS || '0' }}
     steps:
-      - name: Prepare SSH
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Skip superseded commits
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)"
+          if [[ "$current" == "$GITHUB_SHA" ]]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Skipping an older commit.'
+          fi
+      - name: Upload release and deploy
+        if: steps.head.outputs.deploy == 'true'
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          GHCR_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          : "${DEPLOY_HOST:?Missing DEPLOY_HOST}"
+          : "${DEPLOY_USER:?Missing DEPLOY_USER}"
+          : "${DEPLOY_SSH_KEY:?Missing DEPLOY_SSH_KEY}"
+          : "${DEPLOY_KNOWN_HOSTS:?Missing DEPLOY_KNOWN_HOSTS}"
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]
+          [[ "$APP_DOMAIN" =~ ^[a-z0-9.-]+$ ]]
+          [[ "$CATALOG_REPLICAS" =~ ^[01]$ ]]
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          [[ "$owner" =~ ^[a-z0-9-]+$ ]]
           umask 077
-          mkdir -p ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
-          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          cat > "$RUNNER_TEMP/vm" <<'SSH'
-          #!/usr/bin/env bash
-          exec ssh -T -p "$DEPLOY_PORT" -i ~/.ssh/deploy_key \
-            -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=15 "$DEPLOY_USER@$DEPLOY_HOST" "$@"
-          SSH
-          chmod 700 "$RUNNER_TEMP/vm"
-
-      - name: Update main on VM
-        id: update
-        run: |
-          set -euo pipefail
-          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
-          "$RUNNER_TEMP/vm" "bash -se -- '$DEPLOY_SHA'" <<'DEPLOY' | tee "$RUNNER_TEMP/update.log"
-          set -euo pipefail
-          cd "$HOME/marketplace-backend"
-          git fetch origin main
-          if [[ "$(git rev-parse FETCH_HEAD)" != "$1" ]]; then
-            echo 'Skipping: main has a newer commit to deploy.'
-            exit 0
-          fi
-          git switch main
-          git merge --ff-only "$1"
-          echo 'DEPLOY_READY=true'
-          DEPLOY
-          if grep -qx 'DEPLOY_READY=true' "$RUNNER_TEMP/update.log"; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build images on VM
-        if: steps.update.outputs.ready == 'true'
-        run: |
-          "$RUNNER_TEMP/vm" 'bash -se' <<'DEPLOY'
-          cd "$HOME/marketplace-backend"
-          docker compose --progress plain build
-          DEPLOY
-
-      - name: Start containers and wait for health checks
-        if: steps.update.outputs.ready == 'true'
-        run: |
-          "$RUNNER_TEMP/vm" 'bash -se' <<'DEPLOY'
-          cd "$HOME/marketplace-backend"
-          docker compose up --no-build --remove-orphans --wait --wait-timeout 180
-          DEPLOY
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$ssh_dir"' EXIT
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          options=(-i "$ssh_dir/key" -o BatchMode=yes -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$ssh_dir/known_hosts"
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3)
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          release=".marketplace-swarm/releases/backend-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          ssh -p "$DEPLOY_PORT" "${options[@]}" "$target" "umask 077; mkdir -p '$release'"
+          scp -P "$DEPLOY_PORT" "${options[@]}" \
+            deploy/release.sh deploy/swarm/backend.yml "$target:$release/"
+          printf '%s\n' "$GHCR_TOKEN" | ssh -T -p "$DEPLOY_PORT" "${options[@]}" "$target" \
+            "APP_DOMAIN='$APP_DOMAIN' GHCR_OWNER='$owner' CATALOG_REPLICAS='$CATALOG_REPLICAS' bash '$release/release.sh' '$GITHUB_SHA' '$GITHUB_ACTOR'"

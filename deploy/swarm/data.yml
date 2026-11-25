@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: marketplace
+      POSTGRES_USER: marketplace
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - source: postgres_password
+        target: postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      internal:
+        aliases: [db]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U marketplace -d marketplace']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.labels.marketplace.data == true]
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: 30s
+
+networks:
+  internal:
+    external: true
+    name: marketplace-internal
+volumes:
+  postgres-data:
+    external: true
+    name: marketplace-backend_postgres-data
+secrets:
+  postgres_password:
+    external: true
+    name: marketplace_postgres_password_v1
