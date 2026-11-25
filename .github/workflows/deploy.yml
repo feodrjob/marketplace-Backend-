@@ -1,10 +1,7 @@
 name: Deploy to VM
 
 on:
-  workflow_run:
-    workflows: ["Backend CI"]
-    types: [completed]
-    branches: [main]
+
 
 permissions: {}
 
@@ -15,31 +12,40 @@ concurrency:
 jobs:
   deploy:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
+      
       github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
     steps:
-      - name: Update main and start containers on VM
+      - name: Prepare SSH
         env:
-          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
           umask 077
           mkdir -p ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-
-          ssh -T -p "$DEPLOY_PORT" -i ~/.ssh/deploy_key \
+          cat > "$RUNNER_TEMP/vm" <<'SSH'
+          #!/usr/bin/env bash
+          exec ssh -T -p "$DEPLOY_PORT" -i ~/.ssh/deploy_key \
             -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -o ConnectTimeout=15 \
-            "$DEPLOY_USER@$DEPLOY_HOST" "bash -se -- '$DEPLOY_SHA'" <<'DEPLOY'
+            -o ConnectTimeout=15 "$DEPLOY_USER@$DEPLOY_HOST" "$@"
+          SSH
+          chmod 700 "$RUNNER_TEMP/vm"
+
+      - name: Update main on VM
+        id: update
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          "$RUNNER_TEMP/vm" "bash -se -- '$DEPLOY_SHA'" <<'DEPLOY' | tee "$RUNNER_TEMP/update.log"
           set -euo pipefail
           cd "$HOME/marketplace-backend"
           git fetch origin main
@@ -49,5 +55,24 @@ jobs:
           fi
           git switch main
           git merge --ff-only "$1"
-          docker compose up --build --remove-orphans --wait --wait-timeout 180
+          echo 'DEPLOY_READY=true'
+          DEPLOY
+          if grep -qx 'DEPLOY_READY=true' "$RUNNER_TEMP/update.log"; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build images on VM
+        if: steps.update.outputs.ready == 'true'
+        run: |
+          "$RUNNER_TEMP/vm" 'bash -se' <<'DEPLOY'
+          cd "$HOME/marketplace-backend"
+          docker compose --progress plain build
+          DEPLOY
+
+      - name: Start containers and wait for health checks
+        if: steps.update.outputs.ready == 'true'
+        run: |
+          "$RUNNER_TEMP/vm" 'bash -se' <<'DEPLOY'
+          cd "$HOME/marketplace-backend"
+          docker compose up --no-build --remove-orphans --wait --wait-timeout 180
           DEPLOY
