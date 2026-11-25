@@ -97,8 +97,24 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
           options=(-i "$ssh_dir/key" -o BatchMode=yes -o IdentitiesOnly=yes
             -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$ssh_dir/known_hosts"
-            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3)
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3
+            -o ControlMaster=auto -o "ControlPath=$ssh_dir/control" -o ControlPersist=120)
           target="$DEPLOY_USER@$DEPLOY_HOST"
+          cleanup() {
+            ssh -p "$DEPLOY_PORT" "${options[@]}" -O exit "$target" >/dev/null 2>&1 || true
+            rm -rf -- "$ssh_dir"
+          }
+          trap cleanup EXIT
+          connected=false
+          for attempt in {1..4}; do
+            if ssh -p "$DEPLOY_PORT" "${options[@]}" "$target" true; then
+              connected=true
+              break
+            fi
+            echo "SSH attempt $attempt/4 failed."
+            sleep 5
+          done
+          [[ "$connected" == true ]]
           if [[ "$OPERATION" == inspect ]]; then
             ssh -T -p "$DEPLOY_PORT" "${options[@]}" "$target" 'bash -se' <<'REMOTE'
           docker info --format 'Swarm={{.Swarm.LocalNodeState}}'

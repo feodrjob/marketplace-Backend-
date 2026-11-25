@@ -59,10 +59,25 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
           options=(-i "$ssh_dir/key" -o BatchMode=yes -o IdentitiesOnly=yes
             -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$ssh_dir/known_hosts"
-            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3)
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3
+            -o ControlMaster=auto -o "ControlPath=$ssh_dir/control" -o ControlPersist=120)
           target="$DEPLOY_USER@$DEPLOY_HOST"
           release=".marketplace-swarm/releases/backend-$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          ssh -p "$DEPLOY_PORT" "${options[@]}" "$target" "umask 077; mkdir -p '$release'"
+          cleanup() {
+            ssh -p "$DEPLOY_PORT" "${options[@]}" -O exit "$target" >/dev/null 2>&1 || true
+            rm -rf -- "$ssh_dir"
+          }
+          trap cleanup EXIT
+          connected=false
+          for attempt in {1..4}; do
+            if ssh -p "$DEPLOY_PORT" "${options[@]}" "$target" "umask 077; mkdir -p '$release'"; then
+              connected=true
+              break
+            fi
+            echo "SSH attempt $attempt/4 failed."
+            sleep 5
+          done
+          [[ "$connected" == true ]]
           scp -P "$DEPLOY_PORT" "${options[@]}" \
             deploy/release.sh deploy/swarm/backend.yml "$target:$release/"
           printf '%s\n' "$GHCR_TOKEN" | ssh -T -p "$DEPLOY_PORT" "${options[@]}" "$target" \
