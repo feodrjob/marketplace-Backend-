@@ -138,4 +138,3 @@ services:
         - "traefik.http.routers.marketplace-frontend.tls.certresolver=letsencrypt"
         - "traefik.http.routers.marketplace-frontend.priority=1"
         - "traefik.http.services.marketplace-frontend.loadbalancer.server.port=80"
-
