@@ -19,27 +19,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Upload stack file to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: 87.242.102.190
-          username: krefature
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "infra/app-stack.yml"
-          target: "/opt/marketplace/"
-          strip_components: 1
+      - name: Prepare stack file
+        run: |
+          STACK_FILE_B64=$(base64 -w 0 infra/app-stack.yml)
+          printf 'STACK_FILE_B64=%s\n' "$STACK_FILE_B64" >> "$GITHUB_ENV"
 
-      - name: Deploy to VPS
+      - name: Upload stack and deploy over one SSH connection
+        env:
+          STACK_FILE_B64: ${{ env.STACK_FILE_B64 }}
         uses: appleboy/ssh-action@v1
         with:
           host: 87.242.102.190
           username: krefature
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: STACK_FILE_B64
           script: |
             set -e
             cd /opt/marketplace
 
             set -a; source /opt/marketplace/.env; set +a
+            stack_tmp=$(mktemp /opt/marketplace/.app-stack.XXXXXX)
+            trap 'rm -f "$stack_tmp"' EXIT
+            printf '%s' "$STACK_FILE_B64" | base64 --decode > "$stack_tmp"
+            mv "$stack_tmp" /opt/marketplace/app-stack.yml
+
             docker stack deploy \
               -c /opt/marketplace/app-stack.yml \
               --with-registry-auth \

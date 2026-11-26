@@ -26,9 +26,8 @@
 1. Push в main запускает workflow с названием `Build`.
 2. После CI он собирает и публикует образы в GHCR с тегами latest и SHA.
 3. `Deploy` из `.github/workflows/deploy-swarm.yml` получает событие workflow_run после успешного Build для main.
-4. Checkout и appleboy/scp-action копируют app-stack.yml на VPS.
-5. appleboy/ssh-action подключается пользователем krefature, загружает
-   серверный .env и выполняет:
+4. Checkout читает app-stack.yml; appleboy/ssh-action передаёт его на VPS и запускает деплой в одном SSH-сеансе, без отдельных SCP-подключений.
+5. В том же SSH-сеансе пользователь krefature загружает серверный .env и выполняет:
 
 ```bash
 set -a; source /opt/marketplace/.env; set +a
