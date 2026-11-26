@@ -5,6 +5,7 @@ import auth.web.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -29,7 +30,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(restAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/sellers/*").permitAll()
+                        // Открываем только чтение публичного магазина для витрины Catalog.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/sellers/*/shop").permitAll()
                         .requestMatchers(
                                 "/api/v1/auth/register/**",
                                 "/api/v1/auth/login",

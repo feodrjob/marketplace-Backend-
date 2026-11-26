@@ -1,5 +1,6 @@
 package catalog.web.exception
 
+import catalog.exception.SellerShopUnavailableException
 import catalog.exception.CategoryNotFoundException
 import catalog.exception.InvalidCatalogQueryException
 import catalog.exception.ProductNotFoundException
@@ -38,7 +39,7 @@ class GlobalExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, exception.message ?: "Resource not found", request)
     }
 
-    @ExceptionHandler(DataAccessException::class, RestClientException::class)
+    @ExceptionHandler(DataAccessException::class, RestClientException::class, SellerShopUnavailableException::class)
     fun handleUnavailable(exception: Exception, request: HttpServletRequest): ResponseEntity<ProblemResponse> {
         logger.error("Catalog dependency is unavailable", exception)
         return problem(HttpStatus.SERVICE_UNAVAILABLE, "Catalog dependency is temporarily unavailable", request)

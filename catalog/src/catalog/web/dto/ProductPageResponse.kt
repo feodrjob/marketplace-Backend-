@@ -1,4 +1,4 @@
-package catalog.web.dto.product
+package catalog.web.dto
 
 /*
 * Хранит страницу товаров и сведения о пагинации

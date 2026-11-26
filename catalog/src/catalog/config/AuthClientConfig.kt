@@ -8,16 +8,28 @@ import org.springframework.web.client.RestClient
 import java.net.http.HttpClient
 import java.time.Duration
 
-/*
-* Настраивает HTTP клиент публичных данных магазинов Auth
-* */
+/**
+ * Настраивает HTTP-соединение каталога с Auth.
+ */
 @Configuration
 class AuthClientConfig {
+
+    // Создаёт клиент с ограничением ожидания.
     @Bean
-    fun catalogAuthClient(@Value("\${catalog.auth.base-url}") baseUrl: String): RestClient {
-        val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build()
-        val factory = JdkClientHttpRequestFactory(client)
-        factory.setReadTimeout(Duration.ofSeconds(3))
-        return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build()
+    fun authRestClient(
+        @Value("\${catalog.auth.base-url}") baseUrl: String,
+        @Value("\${catalog.auth.connect-timeout}") connectTimeout: Duration,
+        @Value("\${catalog.auth.read-timeout}") readTimeout: Duration,
+    ): RestClient {
+        val httpClient = HttpClient.newBuilder()
+            .connectTimeout(connectTimeout)
+            .build()
+        val requestFactory = JdkClientHttpRequestFactory(httpClient)
+        requestFactory.setReadTimeout(readTimeout)
+
+        return RestClient.builder()
+            .baseUrl(baseUrl)
+            .requestFactory(requestFactory)
+            .build()
     }
 }

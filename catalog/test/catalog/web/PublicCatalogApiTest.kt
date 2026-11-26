@@ -244,7 +244,7 @@ class PublicCatalogApiTest : ElasticsearchUnitTestConfiguration() {
         private val sellerServer = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
             createContext("/api/v1/sellers/") { exchange ->
                 sellerRequests.incrementAndGet()
-                val sellerId = exchange.requestURI.path.substringAfterLast('/')
+                val sellerId = exchange.requestURI.path.removeSuffix("/shop").substringAfterLast('/')
                 val status = sellerStatus.get()
                 val body = if (status == 200) {
                     """{"sellerId":"$sellerId","companyName":"Магазин книг","description":"Описание магазина"}"""

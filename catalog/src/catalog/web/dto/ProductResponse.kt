@@ -1,11 +1,11 @@
-package catalog.web.dto.product
+package catalog.web.dto
 
 import java.time.Instant
 import java.util.UUID
 
-/*
-* Описывает карточку товара в HTTP ответе
-* */
+/**
+ * Товар в публичном ответе API.
+ */
 data class ProductResponse(
     val id: UUID,
     val title: String,

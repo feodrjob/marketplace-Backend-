@@ -3,7 +3,9 @@ server:
 
 catalog:
   auth:
-    base-url: ${AUTH_BASE_URL:http://localhost:8081}
+    base-url: ${CATALOG_AUTH_BASE_URL:${AUTH_BASE_URL:http://localhost:8081}}
+    connect-timeout: ${CATALOG_AUTH_CONNECT_TIMEOUT:2s}
+    read-timeout: ${CATALOG_AUTH_READ_TIMEOUT:3s}
   search:
     initialize-on-startup: ${CATALOG_SEARCH_INITIALIZE_ON_STARTUP:true}
 

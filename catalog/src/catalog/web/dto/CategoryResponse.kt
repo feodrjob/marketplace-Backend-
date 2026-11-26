@@ -1,10 +1,10 @@
-package catalog.web.dto.category
+package catalog.web.dto
 
 import java.util.UUID
 
-/*
-* Описывает категорию и вложенные категории в HTTP ответе
-* */
+/**
+ * Категория в публичном ответе API.
+ */
 data class CategoryResponse(
     val id: UUID,
     val parentId: UUID?,
