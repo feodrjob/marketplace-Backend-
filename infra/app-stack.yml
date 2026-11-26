@@ -1,0 +1,141 @@
+version: "3.9"
+
+networks:
+  traefik-public:
+    external: true
+  app-net:
+    driver: overlay
+    internal: true
+  egress-net:
+    external: true
+    name: marketplace_egress-net
+
+volumes:
+  postgres_data:
+    external: true
+    name: marketplace-backend_postgres-data
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-net
+    deploy:
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: 15s
+      rollback_config:
+        order: stop-first
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  auth:
+    image: ${AUTH_IMAGE}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    networks:
+      - traefik-public
+      - app-net
+      - egress-net
+    deploy:
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: 15s
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.marketplace-auth.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api/v1/auth`) || PathPrefix(`/api/v1/users`))"
+        - "traefik.http.routers.marketplace-auth.entrypoints=websecure"
+        - "traefik.http.routers.marketplace-auth.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.marketplace-auth.priority=100"
+        - "traefik.http.services.marketplace-auth.loadbalancer.server.port=8081"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "true > /dev/tcp/127.0.0.1/8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  catalog:
+    image: ${CATALOG_IMAGE}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}?currentSchema=catalog,public
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    networks:
+      - traefik-public
+      - app-net
+      - egress-net
+    deploy:
+      replicas: ${CATALOG_REPLICAS:-0}
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: 15s
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.marketplace-catalog.rule=Host(`${APP_DOMAIN}`) && (PathPrefix(`/api/v1/products`) || PathPrefix(`/api/v1/categories`))"
+        - "traefik.http.routers.marketplace-catalog.entrypoints=websecure"
+        - "traefik.http.routers.marketplace-catalog.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.marketplace-catalog.priority=100"
+        - "traefik.http.services.marketplace-catalog.loadbalancer.server.port=8083"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "true > /dev/tcp/127.0.0.1/8083"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    image: ${FRONTEND_IMAGE}
+    environment:
+      BACKEND_URL: http://auth:8081
+    networks:
+      - traefik-public
+      - app-net
+    deploy:
+      restart_policy:
+        condition: on-failure
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: 15s
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.marketplace-frontend.rule=Host(`${APP_DOMAIN}`)"
+        - "traefik.http.routers.marketplace-frontend.entrypoints=websecure"
+        - "traefik.http.routers.marketplace-frontend.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.marketplace-frontend.priority=1"
+        - "traefik.http.services.marketplace-frontend.loadbalancer.server.port=80"
+
