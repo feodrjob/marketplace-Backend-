@@ -1,6 +1,17 @@
 server:
   port: ${SERVER_PORT:8083}
 
+springdoc:
+  api-docs:
+    version: OPENAPI_3_1
+  packages-to-scan: catalog.web.controller
+  paths-to-match: /api/v1/catalog/**
+  override-with-generic-response: false
+  swagger-ui:
+    disable-swagger-default-url: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+
 catalog:
   auth:
     base-url: ${CATALOG_AUTH_BASE_URL:${AUTH_BASE_URL:http://localhost:8081}}

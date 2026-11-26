@@ -75,3 +75,10 @@ curl.exe "http://localhost:8083/api/v1/catalog/categories?tree=false"
 
 Первые два запроса должны вернуть 200, некорректный диапазон и повтор страницы — 400.
 Проверять список нужно на товарах, которые присутствуют и в PostgreSQL, и в поисковом индексе.
+
+## OpenAPI
+
+Swagger UI: http://localhost:8083/swagger-ui.html
+Генерируемый контракт: `/v3/api-docs` и `/v3/api-docs.yaml`.
+Сохранённый YAML: `catalog/resources/static/openapi/catalog.yaml`, доступен по `/openapi/catalog.yaml`.
+Порядок обновления и проверки описан в `docs/catalog-api.md`.
