@@ -19,4 +19,6 @@ interface ProductRepository {
     fun findAll(): List<ProductModel>
 
     fun findById(id: UUID): ProductModel?
+
+    fun findAllByIds(ids: Collection<UUID>): List<ProductModel> = ids.mapNotNull { findById(it) }
 }

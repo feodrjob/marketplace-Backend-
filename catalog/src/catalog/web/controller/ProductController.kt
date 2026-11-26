@@ -2,6 +2,10 @@ package catalog.web.controller
 
 import catalog.domain.service.PublicCatalogService
 import catalog.web.dto.ProductResponse
+import catalog.web.dto.ProductPageResponse
+import catalog.web.mapper.ProductQueryMapper
+import org.springframework.util.MultiValueMap
+import org.springframework.web.bind.annotation.RequestParam
 import catalog.web.mapper.ProductDtoMapper
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -17,14 +21,14 @@ import java.util.UUID
 class ProductController(
     private val catalogService: PublicCatalogService,
     private val productMapper: ProductDtoMapper,
+    private val productQueryMapper: ProductQueryMapper,
 ) {
 
     // Возвращает товары публичной витрины.
     @GetMapping
-    fun listProducts(): List<ProductResponse> {
-        val products = catalogService.listProducts()
-
-        return productMapper.toResponseList(products)
+    fun listProducts(@RequestParam parameters: MultiValueMap<String, String>): ProductPageResponse {
+        val query = productQueryMapper.toQuery(parameters)
+        return productMapper.toResponse(catalogService.listProducts(query))
     }
 
     // Возвращает карточку публичного товара.

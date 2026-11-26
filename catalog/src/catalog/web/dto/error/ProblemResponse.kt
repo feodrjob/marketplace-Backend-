@@ -2,9 +2,9 @@ package catalog.web.dto.error
 
 import java.time.Instant
 
-/**
- * Описывает ошибку публичного API.
- */
+/*
+* Описывает ошибку каталога в формате Problem Details
+* */
 data class ProblemResponse(
     val type: String,
     val title: String,

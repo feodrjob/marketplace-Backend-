@@ -5,6 +5,7 @@ import catalog.infrastructure.persistence.entity.ProductEntity
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -19,6 +20,7 @@ interface ProductRepository : JpaRepository<ProductEntity, UUID>, JpaSpecificati
     fun findByIdAndStatus(id: UUID, status: ProductStatus): Optional<ProductEntity>
 
     // 2. Пакетная выборка для чекаута в Commerce Service (API 4.3)
+    @EntityGraph(attributePaths = ["images"])
     fun findAllByIdIn(ids: Collection<UUID>): List<ProductEntity>
 
     fun findAllByIdInAndStatus(ids: Collection<UUID>, status: ProductStatus): List<ProductEntity>

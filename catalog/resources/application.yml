@@ -1,12 +1,13 @@
 server:
-  port: 8083
+  port: ${SERVER_PORT:8083}
 
-# Задаём адрес Auth и таймауты для получения публичного магазина.
 catalog:
   auth:
-    base-url: ${CATALOG_AUTH_BASE_URL:http://localhost:8081}
+    base-url: ${CATALOG_AUTH_BASE_URL:${AUTH_BASE_URL:http://localhost:8081}}
     connect-timeout: ${CATALOG_AUTH_CONNECT_TIMEOUT:2s}
     read-timeout: ${CATALOG_AUTH_READ_TIMEOUT:3s}
+  search:
+    initialize-on-startup: ${CATALOG_SEARCH_INITIALIZE_ON_STARTUP:true}
 
 spring:
   application:

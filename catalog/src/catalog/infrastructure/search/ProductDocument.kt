@@ -10,7 +10,7 @@ import java.time.Instant
  * Индексный документ товара в Elasticsearch для витрины US-2.2.
  *
  * `createIndex = false`, чтобы тесты без поднятого Elasticsearch не падали на старте контекста;
- * создание индекса и маппинга контролируется через [ProductIndexSyncRepository].
+ * создание индекса и маппинга контролируется через [ElasticsearchProductIndexRepository].
  */
 @Document(indexName = ProductDocument.INDEX_NAME, createIndex = false)
 data class ProductDocument(

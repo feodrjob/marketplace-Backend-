@@ -7,6 +7,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
  */
 // Ограничиваем сканирование: тесты БД не зависят от контроллеров.
 @SpringBootApplication(
-    scanBasePackages = ["catalog.infrastructure.persistence"]
+    scanBasePackages = ["catalog.infrastructure.persistence", "catalog.infrastructure.search"]
 )
 class TestApplication

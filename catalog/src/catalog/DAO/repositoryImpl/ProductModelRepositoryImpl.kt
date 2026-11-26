@@ -23,6 +23,10 @@ class ProductModelRepositoryImpl(
         return entities.findAll().map { mapper.toDomain(it) }
     }
 
+    override fun findAllByIds(ids: Collection<UUID>): List<ProductModel> {
+        return if (ids.isEmpty()) emptyList() else entities.findAllByIdIn(ids).map { mapper.toDomain(it) }
+    }
+
     // Загружает товар по идентификатору.
     override fun findById(id: UUID): ProductModel? {
         return entities.findById(id)

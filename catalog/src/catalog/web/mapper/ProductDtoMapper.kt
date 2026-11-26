@@ -1,5 +1,7 @@
 package catalog.web.mapper
 
+import catalog.domain.model.ProductPage
+import catalog.web.dto.ProductPageResponse
 import catalog.domain.model.ProductImageRef
 import catalog.domain.model.PublicProductCard
 import catalog.web.dto.ProductImageResponse
@@ -11,6 +13,13 @@ import org.springframework.stereotype.Component
  */
 @Component
 class ProductDtoMapper {
+    fun toResponse(page: ProductPage): ProductPageResponse = ProductPageResponse(
+        items = toResponseList(page.items),
+        page = page.page,
+        size = page.size,
+        total = page.total,
+    )
+
 
     // Преобразует карточку в ответ.
     fun toResponse(product: PublicProductCard): ProductResponse {

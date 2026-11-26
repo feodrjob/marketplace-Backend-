@@ -11,6 +11,7 @@ import catalog.domain.support.InMemoryProductRepository
 import catalog.domain.support.InMemorySellerShopLookup
 import catalog.web.controller.ProductController
 import catalog.web.exception.GlobalExceptionHandler
+import catalog.web.mapper.ProductQueryMapper
 import catalog.web.mapper.ProductDtoMapper
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -78,6 +79,7 @@ class ProductControllerTest {
         val controller = ProductController(
             catalogService = service,
             productMapper = ProductDtoMapper(),
+            productQueryMapper = ProductQueryMapper(),
         )
 
         mockMvc = MockMvcBuilders
@@ -94,8 +96,8 @@ class ProductControllerTest {
             .andExpect(
                 content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
             )
-            .andExpect(jsonPath("$.length()").value(1))
-            .andExpect(jsonPath("$[0].id").value(activeId.toString()))
+            .andExpect(jsonPath("$.items.length()").value(1))
+            .andExpect(jsonPath("$.items[0].id").value(activeId.toString()))
     }
 
     // Проверяет содержимое карточки товара.

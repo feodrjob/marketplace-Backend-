@@ -21,13 +21,13 @@ repositories {
 
 dependencies {
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
+    implementation 'tools.jackson.module:jackson-module-kotlin'
 
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    // Подключаем автозапуск миграций при старте Catalog.
     implementation 'org.springframework.boot:spring-boot-starter-flyway'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
@@ -41,7 +41,6 @@ dependencies {
 }
 
 springBoot {
-    // main находится в классе CatalogApplication, поэтому исправляем запуск JAR.
     mainClass = 'catalog.CatalogApplication'
 }
 

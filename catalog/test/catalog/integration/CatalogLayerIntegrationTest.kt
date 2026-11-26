@@ -15,6 +15,13 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.containers.GenericContainer
+import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.utility.DockerImageName
+import catalog.infrastructure.search.ProductDocument
+import catalog.infrastructure.search.ProductIndexInitializer
+import catalog.infrastructure.search.ElasticsearchProductIndexRepository
+import org.springframework.data.elasticsearch.core.ElasticsearchOperations
 import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
@@ -43,6 +50,15 @@ class CatalogLayerIntegrationTest {
     @Autowired
     private lateinit var products: DomainProducts
 
+    @Autowired
+    private lateinit var productEntities: catalog.infrastructure.persistence.repository.ProductRepository
+
+    @Autowired
+    private lateinit var index: ElasticsearchProductIndexRepository
+
+    @Autowired
+    private lateinit var elasticsearchOperations: ElasticsearchOperations
+
     private val categoryId = UUID.randomUUID()
     private val productId = UUID.randomUUID()
     private val mediaId = UUID.randomUUID()
@@ -65,6 +81,9 @@ class CatalogLayerIntegrationTest {
             "INSERT INTO catalog.product_images(product_id, media_id, sort_order) VALUES (?, ?, ?)",
             productId, mediaId, 0
         )
+        val indexOps = elasticsearchOperations.indexOps(ProductDocument::class.java)
+        if (indexOps.exists()) indexOps.delete()
+        ProductIndexInitializer(productEntities, categories, index).initialize()
     }
 
     // Проверяет адаптеры после завершения транзакции.
@@ -102,7 +121,7 @@ class CatalogLayerIntegrationTest {
     fun hidesUnavailableProducts() {
         jdbcTemplate.update("UPDATE catalog.products SET status = 'HIDDEN' WHERE id = ?", productId)
         assertEquals(404, get("/api/v1/catalog/products/" + productId).statusCode())
-        assertEquals("[]", get("/api/v1/catalog/products").body())
+        assertEquals(0, JsonPath.read<List<Any>>(get("/api/v1/catalog/products").body(), "$.items").size)
     }
 
     // Проверяет отсутствие магазина без сбоя.
@@ -131,6 +150,14 @@ class CatalogLayerIntegrationTest {
     }
 
     companion object {
+        private val elasticsearch = GenericContainer(DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch:9.0.0"))
+            .withExposedPorts(9200)
+            .withEnv("discovery.type", "single-node")
+            .withEnv("xpack.security.enabled", "false")
+            .withEnv("ES_JAVA_OPTS", "-Xms256m -Xmx256m")
+            .waitingFor(Wait.forHttp("/_cluster/health").forStatusCode(200))
+            .also { it.start() }
+
         private val SELLER_ID = UUID.fromString("00000000-0000-0000-0000-000000000003")
         // Проверяем миграции приложения на пустой БД вместо ручного Flyway.migrate().
         private val postgres: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17-alpine")
@@ -159,6 +186,8 @@ class CatalogLayerIntegrationTest {
         @JvmStatic
         @DynamicPropertySource
         fun authProperties(registry: DynamicPropertyRegistry) {
+            registry.add("catalog.search.initialize-on-startup") { "false" }
+            registry.add("spring.elasticsearch.uris") { "http://${elasticsearch.host}:${elasticsearch.getMappedPort(9200)}" }
             registry.add("spring.datasource.url") {
                 val url = postgres.jdbcUrl
                 url + (if (url.contains("?")) "&" else "?") + "currentSchema=catalog,public"
