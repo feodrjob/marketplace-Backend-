@@ -27,7 +27,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    implementation 'org.flywaydb:flyway-core'
+    // Подключаем автозапуск миграций при старте Catalog.
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
 
@@ -40,7 +41,8 @@ dependencies {
 }
 
 springBoot {
-    mainClass = 'catalog.CatalogApplicationKt'
+    // main находится в классе CatalogApplication, поэтому исправляем запуск JAR.
+    mainClass = 'catalog.CatalogApplication'
 }
 
 sourceSets {

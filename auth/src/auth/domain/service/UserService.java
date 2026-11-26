@@ -5,11 +5,13 @@ import auth.domain.model.UpdateProfileCommand;
 import auth.domain.model.UserModel;
 import auth.domain.model.UserProfile;
 import auth.domain.repository.UserModelRepository;
-
 import java.time.Clock;
 import java.util.Objects;
+import auth.common.enums.Role;
+import auth.exception.SellerShopNotFoundException;
+import java.util.UUID;
 
-// Чтение и правка своего профиля (GET /users/me, PATCH /users/me)
+// Профили пользователей и публичные данные магазинов для Catalog (GET /users/me, PATCH /users/me)
 public final class UserService {
 
     private final UserModelRepository users;
@@ -31,6 +33,17 @@ public final class UserService {
 
     public UserProfile getProfile(String accessToken) {
         return profiles.toProfile(authenticatedUsers.load(accessToken));
+    }
+
+    // чтение магазина для Catalog.
+    public UserProfile getSellerShop(UUID sellerId) {
+        Objects.requireNonNull(sellerId, "sellerId");
+
+        UserModel seller = users.findById(sellerId)
+                .filter(user -> user.getRole() == Role.SELLER)
+                .orElseThrow(SellerShopNotFoundException::new);
+
+        return profiles.toProfile(seller);
     }
 
     public UserProfile updateProfile(UpdateProfileCommand command) {
