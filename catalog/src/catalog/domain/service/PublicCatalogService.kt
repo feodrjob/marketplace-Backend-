@@ -11,6 +11,7 @@ import catalog.domain.model.ProductPage
 import catalog.domain.model.PublicProductCard
 import catalog.domain.repository.CategoryRepository
 import catalog.domain.repository.ProductRepository
+import catalog.domain.repository.ProductSearchRepository
 import catalog.domain.repository.SellerShopLookup
 import catalog.exception.CategoryNotFoundException
 import catalog.exception.ProductNotFoundException
@@ -40,6 +41,7 @@ class PublicCatalogService(
     private val sellerShops: SellerShopLookup,
     private val visibility: CategoryVisibility = CategoryVisibility(),
     private val productCards: PublicProductMapper = PublicProductMapper(),
+    private val search: ProductSearchRepository? = null,
 ) {
     /**
      * Возвращает публичные категории.
@@ -80,6 +82,7 @@ class PublicCatalogService(
      * @return страница карточек и полное число совпадений
      */
     fun listProducts(query: ProductListingQuery): ProductPage {
+        if (search != null) return searchProducts(query)
         val categoriesById = visibility.index(categories.findAll())
         val matched = products.findAll()
             .filter { product -> isOnStorefront(product, categoriesById) }
@@ -122,6 +125,23 @@ class PublicCatalogService(
         val collected = mutableListOf<CategoryModel>()
         collectDescendants(parentId, childrenByParent, collected)
         return collected
+    }
+
+    private fun searchProducts(query: ProductListingQuery): ProductPage {
+        val result = checkNotNull(search).search(query)
+        val categoriesById = visibility.index(categories.findAll())
+        val productsById = products.findAllByIds(result.productIds).associateBy { it.id }
+        val visible = result.productIds.mapNotNull { productsById[it] }
+            .filter { isOnStorefront(it, categoriesById) }
+        val shops = visible.map { it.sellerId }.distinct().associateWith { sellerShops.findBySellerId(it) }
+        return ProductPage(
+            items = visible.map {
+                productCards.toCard(it, categoriesById.getValue(it.categoryId), shops[it.sellerId])
+            },
+            page = query.page,
+            size = if (query.unpaged) visible.size else query.size,
+            total = result.total,
+        )
     }
 
     private fun collectDescendants(

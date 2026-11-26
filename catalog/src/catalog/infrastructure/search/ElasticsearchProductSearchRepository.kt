@@ -2,6 +2,8 @@ package catalog.infrastructure.search
 
 import catalog.common.enums.ProductStatus
 import catalog.domain.model.ProductListingQuery
+import catalog.domain.model.ProductSearchResult
+import catalog.domain.repository.ProductSearchRepository
 import co.elastic.clients.elasticsearch._types.FieldValue
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery
 import co.elastic.clients.elasticsearch._types.query_dsl.Query
@@ -15,22 +17,14 @@ import org.springframework.stereotype.Repository
 import java.util.UUID
 
 /**
- * Результат поисковой выборки из Elasticsearch.
- */
-data class ElasticsearchSearchResult(
-    val productIds: List<UUID>,
-    val total: Int,
-)
-
-/**
  * Инфраструктурный репозиторий поиска, фильтрации, сортировки и пагинации товаров в Elasticsearch (US-2.2).
  */
 @Repository
 class ElasticsearchProductSearchRepository(
     private val elasticsearchOperations: ElasticsearchOperations,
-) {
+) : ProductSearchRepository {
 
-    fun search(query: ProductListingQuery): ElasticsearchSearchResult {
+    override fun search(query: ProductListingQuery): ProductSearchResult {
         val esQuery = buildBoolQuery(query)
         val pageable = if (query.unpaged) {
             PageRequest.of(0, MAX_UNPAGED_SIZE)
@@ -47,7 +41,7 @@ class ElasticsearchProductSearchRepository(
 
         val hits = elasticsearchOperations.search(nativeQuery, ProductDocument::class.java)
         val ids = hits.searchHits.map { UUID.fromString(it.content.id) }
-        return ElasticsearchSearchResult(
+        return ProductSearchResult(
             productIds = ids,
             total = hits.totalHits.toInt(),
         )

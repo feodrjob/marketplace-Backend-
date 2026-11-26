@@ -35,6 +35,7 @@ services:
       SPRING_DATASOURCE_USERNAME: marketplace
       SPRING_DATASOURCE_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
       SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      AUTH_BASE_URL: http://auth:8081
     depends_on:
       db:
         condition: service_healthy

@@ -42,6 +42,7 @@ abstract class DatabaseUnitTestConfiguration {
         @JvmStatic
         @DynamicPropertySource
         fun configureProperties(registry: DynamicPropertyRegistry) {
+            registry.add("catalog.search.initialize-on-startup") { "false" }
             registry.add("spring.datasource.url") {
                 val url = postgres.jdbcUrl
                 if (url.contains("?")) "$url&currentSchema=catalog,public" else "$url?currentSchema=catalog,public"
