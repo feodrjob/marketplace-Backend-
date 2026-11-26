@@ -22,3 +22,11 @@ spring:
     default-schema: catalog
     locations:
       - classpath:db/migration
+  elasticsearch:
+    uris: ${SPRING_ELASTICSEARCH_URIS:http://localhost:9200}
+    connection-timeout: 3s
+    socket-timeout: 5s
+  data:
+    elasticsearch:
+      repositories:
+        enabled: false
