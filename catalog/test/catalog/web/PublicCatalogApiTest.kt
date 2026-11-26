@@ -194,6 +194,67 @@ class PublicCatalogApiTest : ElasticsearchUnitTestConfiguration() {
         assertFalse(response.body().contains("upstream failure"))
     }
 
+    @Test
+    fun documentsImplementedRoutesParametersAndSchemas() {
+        val response = documentationRequest("/v3/api-docs")
+        assertEquals(200, response.statusCode(), response.body())
+        val document = json.readTree(response.body())
+        assertTrue(document["openapi"].stringValue().startsWith("3.1."))
+        val paths = document["paths"]
+        assertEquals(
+            setOf("/api/v1/catalog/products", "/api/v1/catalog/products/{id}", "/api/v1/catalog/categories"),
+            paths.propertyNames().toSet(),
+        )
+        val products = paths["/api/v1/catalog/products"]["get"]
+        assertEquals("listCatalogProducts", products["operationId"].stringValue())
+        val parameters = products["parameters"].toList().associateBy { it["name"].stringValue() }
+        assertEquals(
+            setOf("q", "f[price]", "f[category]", "f[categoryId]", "f[sellerId]", "f[category]!", "f[categoryId]!", "f[sellerId]!", "sort", "page", "size"),
+            parameters.keys,
+        )
+        assertEquals(100, parameters.getValue("size")["schema"]["maximum"].asInt())
+        assertEquals(20, parameters.getValue("size")["schema"]["default"].asInt())
+        assertEquals(0, parameters.getValue("page")["schema"]["default"].asInt())
+        assertFalse(parameters.getValue("sort")["schema"].has("default"))
+        assertEquals(setOf("200", "400", "503"), products["responses"].propertyNames().toSet())
+        for (path in paths.propertyNames()) {
+            val operation = paths[path]["get"]
+            assertTrue(operation["security"] == null || operation["security"].isEmpty)
+            assertTrue(operation["responses"]["400"]["content"].has("application/problem+json"))
+        }
+        val schemas = document["components"]["schemas"]
+        val product = schemas["ProductResponse"]
+        assertEquals(product["properties"].propertyNames().toSet(), product["required"].toList().map { it.stringValue() }.toSet())
+        for (field in listOf("description", "companyName", "sellerDescription")) {
+            assertTrue(product["properties"][field]["type"].toList().any { it.stringValue() == "null" }, field)
+        }
+        assertTrue(schemas["CategoryResponse"]["properties"]["parentId"]["type"].toList().any { it.stringValue() == "null" })
+        assertEquals("date-time", product["properties"]["createdAt"]["format"].stringValue())
+        assertEquals("uuid", product["properties"]["id"]["format"].stringValue())
+    }
+
+    @Test
+    fun servesSwaggerUiAndYamlContract() {
+        assertEquals(200, documentationRequest("/swagger-ui/index.html").statusCode())
+        val config = documentationRequest("/v3/api-docs/swagger-config")
+        assertEquals(200, config.statusCode())
+        assertEquals("/v3/api-docs", json.readTree(config.body())["url"].stringValue())
+        val yamlResponse = documentationRequest("/v3/api-docs.yaml")
+        assertEquals(200, yamlResponse.statusCode())
+        val yamlMapper = tools.jackson.dataformat.yaml.YAMLMapper.builder().build()
+        val generatedYaml = yamlMapper.readTree(yamlResponse.body())
+        assertEquals(json.readTree(documentationRequest("/v3/api-docs").body()), generatedYaml)
+        val snapshotResponse = documentationRequest("/openapi/catalog.yaml")
+        assertEquals(200, snapshotResponse.statusCode())
+        val snapshot = yamlMapper.readTree(snapshotResponse.body())
+        assertEquals(generatedYaml, snapshot)
+    }
+
+    private fun documentationRequest(path: String): HttpResponse<String> = client.send(
+        HttpRequest.newBuilder(URI("http://localhost:$port$path")).GET().build(),
+        HttpResponse.BodyHandlers.ofString(),
+    )
+
     private fun getProducts(vararg parameters: Pair<String, String>): JsonNode {
         val response = request("/products", parameters.toList())
         assertEquals(200, response.statusCode(), response.body())

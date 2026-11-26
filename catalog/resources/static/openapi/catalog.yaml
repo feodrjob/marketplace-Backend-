@@ -1,0 +1,440 @@
+openapi: 3.1.0
+info:
+  title: Т-Маркет — Catalog Service
+  description: 'Контракт реализованной публичной витрины US-2.1 и US-2.2. Все операции доступны без JWT. Цена указана
+    в целых бонусах. Поиск выполняется в Elasticsearch, карточки читаются из PostgreSQL. Устаревший индекс может
+    содержать уже недоступные товары: они исключаются из карточек, но могут оставаться в total. Управление ассортиментом
+    и загрузка изображений в этот контракт не входят.'
+  version: 1.0.0
+servers:
+- url: /
+  description: Текущий origin, порт Catalog по умолчанию 8083
+tags:
+- name: Categories
+  description: Публичные категории витрины
+- name: Products
+  description: Публичный поиск и карточки товаров
+paths:
+  /api/v1/catalog/products:
+    get:
+      tags:
+      - Products
+      summary: Найти товары публичной витрины
+      description: Возвращает только ACTIVE товары в активной ветке категорий. Разные фильтры объединяются через
+        AND, значения одного фильтра через OR. Все параметры передаются не более одного раза. Неизвестные параметры
+        отклоняются с 400. Отрицание цены не поддерживается. Для отрицания имя параметра заканчивается на !, например
+        f[sellerId]!. В URL f[sellerId]!=uuid знак = отделяет имя от значения. total считается в Elasticsearch и
+        может включать недоступные товары при устаревшем индексе.
+      operationId: listCatalogProducts
+      parameters:
+      - name: q
+        in: query
+        description: Поиск по названию и описанию с русской морфологией и опечатками, пустой текст не ограничивает
+          выдачу
+        schema:
+          type: string
+        example: книги
+      - name: f[price]
+        in: query
+        description: Включительный диапазон целых неотрицательных цен min,max, min не больше max
+        schema:
+          type: string
+        example: 100,5000
+      - name: f[category]
+        in: query
+        description: Один или несколько slug категорий через запятую, достаточно совпадения с одним
+        schema:
+          type: string
+        example: books,electronics
+      - name: f[categoryId]
+        in: query
+        description: Один или несколько UUID категорий через запятую
+        schema:
+          type: string
+        example: 00000000-0000-0000-0000-000000000001
+      - name: f[sellerId]
+        in: query
+        description: Один или несколько UUID аккаунтов продавцов через запятую
+        schema:
+          type: string
+        example: 00000000-0000-0000-0000-000000000010
+      - name: f[category]!
+        in: query
+        description: Исключить категории по slug, несколько значений через запятую
+        schema:
+          type: string
+        example: archived
+      - name: f[categoryId]!
+        in: query
+        description: Исключить категории по UUID, несколько значений через запятую
+        schema:
+          type: string
+        example: 00000000-0000-0000-0000-000000000002
+      - name: f[sellerId]!
+        in: query
+        description: Исключить продавцов по UUID аккаунта, несколько значений через запятую
+        schema:
+          type: string
+        example: 00000000-0000-0000-0000-000000000011
+      - name: sort
+        in: query
+        description: 'Без sort: с q — релевантность, без q — createdAt,desc. При равенстве используется id'
+        schema:
+          type: string
+          enum:
+          - price,asc
+          - price,desc
+          - createdAt,asc
+          - createdAt,desc
+        example: price,asc
+      - name: page
+        in: query
+        description: Номер страницы с нуля. Должно выполняться (page + 1) * size <= 10000
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          minimum: 0
+        example: 0
+      - name: size
+        in: query
+        description: Размер страницы от 1 до 100. Должно выполняться (page + 1) * size <= 10000
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 100
+          minimum: 1
+        example: 20
+      responses:
+        '200':
+          description: Страница товаров
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPageResponse'
+              examples:
+                emptyPage:
+                  description: emptyPage
+                  value:
+                    items: []
+                    page: 0
+                    size: 20
+                    total: 0
+        '400':
+          description: Некорректные параметры запроса или UUID
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+        '503':
+          description: PostgreSQL Elasticsearch или Auth временно недоступны
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+  /api/v1/catalog/products/{id}:
+    get:
+      tags:
+      - Products
+      summary: Получить карточку товара
+      description: Скрытый, архивный, удалённый товар или товар неактивной ветки категорий возвращает 404
+      operationId: getCatalogProduct
+      parameters:
+      - name: id
+        in: path
+        description: UUID товара
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: 00000000-0000-0000-0000-000000000101
+      responses:
+        '200':
+          description: Карточка товара
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          description: Некорректные параметры запроса или UUID
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+        '404':
+          description: Ресурс отсутствует или недоступен для публичной витрины
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+        '503':
+          description: PostgreSQL или Auth временно недоступны
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+  /api/v1/catalog/categories:
+    get:
+      tags:
+      - Categories
+      summary: Получить категории витрины
+      description: 'Категория и все её предки должны быть активны. Порядок: sortOrder, name, id. При parentId возвращаются
+        потомки без самого родителя. В плоском списке children пустой. Неизвестные и повторные параметры возвращают
+        400'
+      operationId: listCatalogCategories
+      parameters:
+      - name: tree
+        in: query
+        description: true — дерево, false — плоский список. Принимаются только true и false в нижнем регистре
+        schema:
+          type: boolean
+          default: true
+      - name: parentId
+        in: query
+        description: UUID родителя поддерева. Неизвестный или неактивный родитель возвращает 404
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Список корней дерева или плоский список категорий
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          description: Некорректные параметры запроса или UUID
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+        '404':
+          description: Ресурс отсутствует или недоступен для публичной витрины
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+        '503':
+          description: PostgreSQL временно недоступен
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemResponse'
+components:
+  schemas:
+    ProductImageResponse:
+      type: object
+      description: Ссылка на изображение товара
+      properties:
+        mediaId:
+          type: string
+          format: uuid
+          description: Идентификатор файла в Media, URL получается через API Media
+          example: 00000000-0000-0000-0000-000000000201
+        sortOrder:
+          type: integer
+          format: int32
+          description: Порядок изображения, меньшее число означает более ранний показ
+          example: 0
+      required:
+      - mediaId
+      - sortOrder
+    ProductPageResponse:
+      type: object
+      description: Страница найденных товаров
+      properties:
+        items:
+          type: array
+          description: Карточки текущей страницы, пустой массив если совпадений нет
+          items:
+            $ref: '#/components/schemas/ProductResponse'
+        page:
+          type: integer
+          format: int32
+          description: Номер страницы с нуля
+          example: 0
+          minimum: 0
+        size:
+          type: integer
+          format: int32
+          description: Запрошенный размер страницы, может превышать фактическое число карточек
+          example: 20
+          maximum: 100
+          minimum: 1
+        total:
+          type: integer
+          format: int32
+          description: Число совпадений в Elasticsearch до выделения страницы, при устаревшем индексе может включать
+            недоступные товары
+          example: 42
+          minimum: 0
+      required:
+      - items
+      - page
+      - size
+      - total
+    ProductResponse:
+      type: object
+      description: Карточка доступного товара
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Идентификатор товара
+          example: 00000000-0000-0000-0000-000000000101
+        title:
+          type: string
+          description: Название товара
+          example: Новая книга
+        description:
+          type:
+          - string
+          - 'null'
+          description: Описание товара или null
+          example: Книга о животных
+        price:
+          type: integer
+          format: int64
+          description: Цена в целых бонусах
+          example: 1500
+          minimum: 1
+        categoryId:
+          type: string
+          format: uuid
+          description: Идентификатор категории
+          example: 00000000-0000-0000-0000-000000000001
+        categoryName:
+          type: string
+          description: Название категории
+          example: Книги
+        categorySlug:
+          type: string
+          description: Slug категории
+          example: books
+        images:
+          type: array
+          description: Изображения в порядке показа, пустой массив если изображений нет
+          items:
+            $ref: '#/components/schemas/ProductImageResponse'
+        sellerId:
+          type: string
+          format: uuid
+          description: Идентификатор аккаунта продавца, совпадает с sub его JWT
+          example: 00000000-0000-0000-0000-000000000010
+        companyName:
+          type:
+          - string
+          - 'null'
+          description: Название магазина или null, если Auth не нашёл продавца
+          example: Книжный магазин
+        sellerDescription:
+          type:
+          - string
+          - 'null'
+          description: Описание магазина или null
+          example: Магазин книг
+        createdAt:
+          type: string
+          format: date-time
+          description: Время создания в формате ISO 8601
+          example: '2026-11-27T00:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: Время последнего изменения в формате ISO 8601
+          example: '2026-11-27T01:00:00Z'
+      required:
+      - categoryId
+      - categoryName
+      - categorySlug
+      - companyName
+      - createdAt
+      - description
+      - id
+      - images
+      - price
+      - sellerDescription
+      - sellerId
+      - title
+      - updatedAt
+    ProblemResponse:
+      type: object
+      description: Ошибка в формате Problem Details
+      properties:
+        type:
+          type: string
+          description: Идентификатор типа ошибки
+          example: about:blank
+        title:
+          type: string
+          description: Краткое название HTTP ошибки
+          example: Bad Request
+        status:
+          type: integer
+          format: int32
+          description: HTTP код ошибки
+          example: 400
+        detail:
+          type: string
+          description: Описание причины ошибки
+          example: Price minimum is greater than maximum
+        instance:
+          type: string
+          description: Путь запроса без query string
+          example: /api/v1/catalog/products
+        timestamp:
+          type: string
+          format: date-time
+          description: Время формирования ошибки в формате ISO 8601
+          example: '2026-11-27T00:00:00Z'
+      required:
+      - detail
+      - instance
+      - status
+      - timestamp
+      - title
+      - type
+    CategoryResponse:
+      type: object
+      description: Узел дерева или плоского списка публичных категорий
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Идентификатор категории
+          example: 00000000-0000-0000-0000-000000000001
+        parentId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+          description: Идентификатор родителя или null для корневой категории
+          example: 00000000-0000-0000-0000-000000000002
+        name:
+          type: string
+          description: Название категории
+          example: Книги
+        slug:
+          type: string
+          description: Slug категории для фильтрации товаров
+          example: books
+        sortOrder:
+          type: integer
+          format: int32
+          description: Порядок категории среди соседей
+          example: 0
+        children:
+          type: array
+          description: Видимые дочерние категории, пустой массив при tree=false или отсутствии потомков
+          items:
+            $ref: '#/components/schemas/CategoryResponse'
+      required:
+      - children
+      - id
+      - name
+      - parentId
+      - slug
+      - sortOrder
